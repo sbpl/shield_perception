@@ -21,7 +21,7 @@ from visualization_msgs.msg import MarkerArray
 import tf
 
 from dynamic_reconfigure.server import Server
-from shield_perception.cfg import calibrateConfig
+# from shield_perception.cfg import calibrateConfig
 
 ## Config Variables
 G_DEBUG = True
@@ -431,8 +431,12 @@ def kinect_callback(ros_cloud):
             save_dict['ki'] = (k_ball_position_estimates, k_ball_time_estimates)
             save_dict['ki_points'] = k_ball_pointcloud
             save_dict['TF'] = A_FP_KI
-            with open("/home/roman/catkin_ws/calib_data_runs/"+time.strftime("%Y%m%d-%H%M%S")+'.pickle', 'wb') as handle:
+            rospack = rospkg.RosPack()
+            pkg_dir = rospack.get_path('shield_perception')
+            filename = pkg_dir + "/data_dump/calib_data_runs/"+time.strftime("%Y%m%d-%H%M%S")+'.pickle' 
+            with open(filename, 'wb') as handle:
                 pickle.dump(save_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                print("Saving raw files to ", filename)
             for estimates in projectile_estimates:
                 # print(estimates, "Estimates")
                 print(compute_accuracy(estimates[0],estimates[1],estimates[2],estimates[3],estimates[4],estimates[5])*100.0, "Errors (cm)")
@@ -496,7 +500,9 @@ def listener():
     global x_offset, y_offset, z_offset, roll_offset, pitch_offset, yaw_offset, drag_coeff, vt, res_roll_A, res_pitch_A, res_yaw_A, mass_ball
     rospack = rospkg.RosPack()
     pkg_dir = rospack.get_path('shield_perception')
-    params = tuple(np.load(pkg_dir + "/data_dump/perpection_params.npy").tolist())
+    param_filename = pkg_dir + "/data_dump/perception_params.npy"
+    params = tuple(np.load(param_filename).tolist())
+    print("Param file ", param_filename)
     # params = [0.404571, 0.13428446, 0.35198332, 1.5798978885211274, -8.995515878771856, -0.34771949149796966, 0.01176908]
     print("Params loaded", params)
     x_offset, y_offset, z_offset, roll_offset, pitch_offset, yaw_offset, drag_coeff = params

@@ -20,7 +20,7 @@ tmux send-keys 'roslaunch shield_perception sp2.launch depth_pcloud_enable:="tru
 
 tmux select-pane -t 1
 tmux send-keys 'export ROS_IP=10.68.0.102 ROS_MASTER_URI=http://10.68.0.1:11311' C-m
-tmux send-keys 'roslaunch shield_perception kinect_filter.launch'
+tmux send-keys 'roslaunch shield_perception kinect_external_filter.launch'
 
 tmux select-pane -t 2
 tmux send-keys 'export ROS_IP=10.68.0.102 ROS_MASTER_URI=http://10.68.0.1:11311' C-m
@@ -28,7 +28,7 @@ tmux send-keys 'rosrun shield_perception publish_tfs.py'
 
 tmux select-pane -t 3
 tmux send-keys 'export ROS_IP=10.68.0.102 ROS_MASTER_URI=http://10.68.0.1:11311' C-m
-tmux send-keys 'rosrun shield_perception compute_projectile.py'
+tmux send-keys 'rosrun shield_perception track_ball.py'
 
 tmux select-pane -t 4
 tmux send-keys 'export ROS_IP=10.68.0.102 ROS_MASTER_URI=http://10.68.0.1:11311' C-m

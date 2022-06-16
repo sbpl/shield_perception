@@ -1,0 +1,32 @@
+Notes:
+-> Do not run cam without lappy on charge
+
+Steps:
+Stuff to launch on the robot - 
+Start Estop 
+Tmux start
+roslaunch /etc/ros/robot.launch c2:=false
+rosrun tf static_transform_publisher 0 0.015 0 0 0 0 head_mount_kinect_ir_link camera_link 10
+roslaunch freenect_launch freenect.launch
+tmux end
+Switch to client
+sudo ntpdate -u 10.68.0.1 (syncs clocks)
+source ~/catkin_ws/tmux_robot_expts.sh
+Launch cam driver (0,0)
+launch cam filter (1,0)
+launch rqt reconfigure
+sc_nodelet -> depth_mode=hybrid (once per pr2 roscore launch)
+launch rviz for verifying the point clound filtering
+ sc frame -> sc_depth_frame
+robot -> base_footprint
+
+
+
+### Calibration Notes:
+- Before you begin calibration, delete the pickle files in shield_perception/data_dump/calib_data_runs
+- Once you have the camera driver and filter running, you can go ahead and through balls but make sure you run track_ball ros package
+- track_ball will generate a pickle file per throw
+- get around 10 throws
+- now go to the scripts folder
+- run python3 p3_calibrate.py to run the calibration which will generate perception_params.py file
+  
