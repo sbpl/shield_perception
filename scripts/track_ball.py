@@ -72,80 +72,6 @@ projectile_estimates = []
 first_sc_timestamp = None
 
 
-def getProjectileDiscretizationPts_2(projectile_vel_x,
-    projectile_vel_y,
-    projectile_vel_z, 
-    projectile_start_3d_x, 
-    projectile_start_3d_y, 
-    projectile_start_3d_z, time_interval=0.01):
-    global gravity, drag_coeff, mass_ball, vt
-
-    g = -gravity
-
-    projectile_start_x = projectile_start_3d_x
-    projectile_start_y = projectile_start_3d_y
-    projectile_start_z = projectile_start_3d_z
-
-    sx = []
-    sy = []
-    sz = []
-
-    t = 0.0
-
-    while t < 1.5:
-
-        height_check = projectile_start_z + (vt/g)*(projectile_vel_z+vt)*(1.0-np.exp(-(g*t/vt)))-vt*t
-        if (height_check > -0.05):
-            sx.append(projectile_start_3d_x + (projectile_vel_x*vt/g)*(1.0-np.exp(-g*t/vt)) )
-            sy.append(projectile_start_3d_y + (projectile_vel_y*vt/g)*(1.0-np.exp(-g*t/vt)) )
-            sz.append(height_check)
-
-        t += time_interval
-
-    # print("sx ", sx)
-    # print("sy ", sy)
-    # print("sz ", sz)
-    
-    # range_3d = np.sqrt(np.pow((sx[0] - sz[-1]),2)
-    range_3d = np.linalg.norm(np.array([sx[0], sy[0], sz[0]]) - np.array([sx[-1], sy[-1], sz[-1]]))
-
-    # print("range in 3d = ", range_3d)
-
-    return sx, sy, sz
-
-
-def show_marker(sx, sy, sz, r=1.0, g=0.0,b=0.0):
-    marker_array_ = MarkerArray()
-    num_pts = len(sx)
-    # print("num_pts ", num_pts)
-    for i in range(num_pts):
-        marker_ = Marker()
-        marker_.header.frame_id = "/odom_combined"
-        # marker_.header.stamp = rospy.Time.now()
-        marker_.type = marker_.SPHERE
-        marker_.action = marker_.ADD
-
-        marker_.pose.position.x = sx[i]
-        marker_.pose.position.y = sy[i]
-        marker_.pose.position.z = sz[i]
-        marker_.pose.orientation.x = 0.0
-        marker_.pose.orientation.y = 0.0
-        marker_.pose.orientation.z = 0.0
-        marker_.pose.orientation.w = 1.0
-        marker_.id = i
-        # marker_.lifetime = rospy.Duration.from_sec(lifetime_)
-        marker_.scale.x = 0.05
-        marker_.scale.y = 0.05
-        marker_.scale.z = 0.05
-        marker_.color.a = 0.8
-        # red_, green_, blue_ = color_
-        marker_.color.r = r
-        marker_.color.g = g
-        marker_.color.b = b
-        marker_array_.markers.append(marker_) 
-        
-    return marker_array_
-
 def compute_projectile_2(bpes, btes, pmsg, pmmsg, color=(1.0,0.0,0.0), publish_pmsg=True):
     global vel_scale, gravity, vt, projectile_estimates
     t1 = rospy.Time.now()
@@ -463,9 +389,13 @@ def listener():
     k_tf_trans = None
     k_tf_rot = None
     tf_listener = tf.TransformListener()
+    # Find tf (transform) listener
     while not tf_found:
         try:
-            (k_tf_trans,k_tf_rot) = tf_listener.lookupTransform("base_footprint", "/camera_depth_optical_frame",rospy.Time(0))
+            # Look for trans and rot? for camera_depth_optical_frame
+            # frome base_footprint
+            (k_tf_trans,k_tf_rot) = tf_listener.lookupTransform("base_footprint",\
+                    "/camera_depth_optical_frame",rospy.Time(0))
             print("translation ", k_tf_trans)
             print("rotation ", k_tf_rot)
             tf_found = True
@@ -475,10 +405,12 @@ def listener():
     print("Found TF")
     # k_tf_trans = [-0.15783123802738946, 0.01273613573344717, 1.4690869133055597]
     # k_tf_rot = [-0.4749945606732899, 0.5031187344211056, -0.5249774084103889, 0.4956313418903257]
+    # Multiplying trans and rot to get relative to base_footprint
     trans_mat = tf.transformations.translation_matrix(k_tf_trans)
     rot_mat = tf.transformations.quaternion_matrix(k_tf_rot)
     A_FP_KI = np.dot(trans_mat, rot_mat)
 
+    # Const trans and rot for ?
     tf_trans = [6.01944448, -0.52128749,  0.55443587]
     tf_rot = [0.4995405,  0.45499593, 0.51035028, 0.53195919]
 
