@@ -6,17 +6,12 @@ from sensor_msgs.msg import PointCloud2, PointField
 import sensor_msgs.point_cloud2 as pc2
 import time
 import pickle
-import copy
 
 # projectile imports 
-import random
 from shield_planner_msgs.srv import TestbedProjectile
 from shield_planner_msgs.msg import Projectile
 import std_msgs.msg
-import datetime
-import math
 import rospkg
-from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 import tf
 
@@ -393,7 +388,7 @@ def listener():
     while not tf_found:
         try:
             # Look for trans and rot? for camera_depth_optical_frame
-            # frome base_footprint
+            # from base_footprint
             (k_tf_trans,k_tf_rot) = tf_listener.lookupTransform("base_footprint",\
                     "/camera_depth_optical_frame",rospy.Time(0))
             print("translation ", k_tf_trans)
