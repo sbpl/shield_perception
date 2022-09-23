@@ -92,10 +92,10 @@ class TrackBall( object ) :
         self.roll_offset = 0.0
         self.pitch_offset = 0.0
         self.yaw_offset = 0.0
-        self.x_pos_lim = x_cen + x_width/2.0
-        self.x_neg_lim = x_cen - x_width/2.0
-        self.y_pos_lim = y_cen + y_width/2.0
-        self.y_neg_lim = y_cen - y_width/2.0
+        self.x_pos_lim = self.x_cen + self.x_width/2.0
+        self.x_neg_lim = self.x_cen - self.x_width/2.0
+        self.y_pos_lim = self.y_cen + self.y_width/2.0
+        self.y_neg_lim = self.y_cen - self.y_width/2.0
         self.res_yaw_A = np.eye(4)
         self.res_pitch_A = np.eye(4)
         self.res_roll_A = np.eye(4)
@@ -104,7 +104,7 @@ class TrackBall( object ) :
         self.gravity = -9.80665
         self.drag_coeff = 0.015
         self.mass_ball = 0.03135
-        self.vt = -mass_ball*gravity/drag_coeff
+        self.vt = -self.mass_ball*self.gravity/self.drag_coeff
 
         # Data
         self.projectile_estimates = []
@@ -224,7 +224,7 @@ class TrackBall( object ) :
         ki_points = np.array(
                   self.ki_sess.k_ball_position_estimates).transpose()
         ki_times = np.array(
-                 self.ki_sess.k_ball_time_estimates)
+                 self.ki_sess.k_ball_time_estimates)\
                  -self.sc_sess.first_sc_timestamp
         # Compute velocity of GT projectile
         s, e = 0, ki_points.shape[1]-1
@@ -238,7 +238,7 @@ class TrackBall( object ) :
             delt = ki_times[i] - ki_times[s]
             vx = delx/delt
             vy = dely/delt
-            vzi = (delz-0.5*gravity*delt*delt)/delt
+            vzi = (delz-0.5*self.gravity*delt*delt)/delt
             k_vxm.append(vx)
             k_vym.append(vy)
             k_vzim.append(vzi)
@@ -248,7 +248,7 @@ class TrackBall( object ) :
 
         ki_delx = wall_x-ki_points[0,0]
         ki_delt = ki_delx/(k_vx)
-        ki_point = extrapolate_projectile_to_time(ki_points[0,0],
+        ki_point = self.extrapolate_projectile_to_time(ki_points[0,0],
                                                   ki_points[1,0],
                                                   ki_points[2,0],
                                                   k_vx,k_vy,k_vzi,
@@ -256,7 +256,7 @@ class TrackBall( object ) :
         reference_points = np.concatenate(
                          [ki_points, ki_point.reshape(-1,1)], axis=1)
         extrapolated_points = np.array(
-                            [extrapolate_projectile_to_time(ipx,ipy,ipz,
+                            [self.extrapolate_projectile_to_time(ipx,ipy,ipz,
                                                             ivx,ivy,ivz,delt)
                             for delt in np.arange(ki_times[0]-0.030,
                                                   ki_delt+ki_times[0],
@@ -279,7 +279,7 @@ class TrackBall( object ) :
 
 ###########################################################################
 ##############################WORKING MAIN#################################
-    def listener():
+    def listener( self ):
         # Init ROS node(process)
         rospy.init_node('c_p_calibrate')
 
@@ -308,27 +308,24 @@ class TrackBall( object ) :
             self.roll_offset, self.pitch_offset,\
             self.yaw_offset, self.drag_coeff = params
         self.pitch_offset, self.roll_offset, self.yaw_offset =\
-            pitch_offset*np.pi/180.0, roll_offset*np.pi/180.0,\
-            yaw_offset*np.pi/180.0
+            self.pitch_offset*np.pi/180.0, self.roll_offset*np.pi/180.0,\
+            self.yaw_offset*np.pi/180.0
         self.res_pitch_A = np.array(
                          [[1,0,0,0],
-                         [0,np.cos(pitch_offset),-np.sin(pitch_offset),0],
-                         [0,np.sin(pitch_offset),np.cos(pitch_offset),0],
+                         [0,np.cos(self.pitch_offset),-np.sin(self.pitch_offset),0],
+                         [0,np.sin(self.pitch_offset),np.cos(self.pitch_offset),0],
                          [0,0,0,1]])
         self.res_yaw_A = np.array(
-                         [[np.cos(yaw_offset),0,np.sin(yaw_offset),0],
+                         [[np.cos(self.yaw_offset),0,np.sin(self.yaw_offset),0],
                          [0,1,0,0],
-                         [-np.sin(yaw_offset),0,np.cos(yaw_offset),0],
+                         [-np.sin(self.yaw_offset),0,np.cos(self.yaw_offset),0],
                          [0,0,0,1]])
         self.res_roll_A = np.array(
-                         [[np.cos(roll_offset),-np.sin(roll_offset),0,0],
-                         [np.sin(roll_offset),np.cos(roll_offset),0,0],
+                         [[np.cos(self.roll_offset),-np.sin(self.roll_offset),0,0],
+                         [np.sin(self.roll_offset),np.cos(self.roll_offset),0,0],
                          [0,0,1,0],
                          [0,0,0,1]])
         rate = rospy.Rate(600) # 10hz
-
-        global projectile_computed, ball_position_estimates, ball_position_estimates_base, res_yaw_A, res_pitch_A, z_offset, x_offset, y_offset
-        global k_enable_replanning, first_sc_timestamp
 
         # Start of the loop with loop control variable process_sc
         process_sc = True
@@ -338,20 +335,21 @@ class TrackBall( object ) :
                 t1 = rospy.Time.now()
                 self.sc_sess.sc_filter( self )
                 t2 = rospy.Time.now()
-                compute_projectile_2(
+                self.compute_projectile_2(
                     self.sc_sess.ball_position_estimates,
                     self.sc_sess.ball_time_estimates_filtered,
                     self.sc_sess.projectile_msg_pub,
                     self.sc_sess.projectile_marker_pub)
                 process_sc = False
                 print("Structure CORE TimeSTAMPS",
-                      ball_time_estimates, "time diff",
+                      self.sc_sess.ball_time_estimates, "time diff",
                       (t2-t1).to_sec()*1000, t1.to_sec())
 
             # When kinect need replanning
-            if k_enable_replanning and k_kinect_replanning_available:
-                sefl.sc_sess.sc_filter( self )
-                compute_projectile_2(
+            if self.ki_sess.k_enable_replanning and\
+                    self.ki_sess.k_kinect_replanning_available:
+                self.sc_sess.sc_filter( self )
+                self.compute_projectile_2(
                     self.sc_sess.ball_position_estimates
                     +np.array(self.ki_sess.k_ball_position_estimates).tolist(),
                     self.sc_sess.ball_time_estimates_filtered
@@ -359,13 +357,13 @@ class TrackBall( object ) :
                     self.sc_sess.projectile_msg_pub,
                     self.sc_sess.projectile_marker_pub)
                 k_enable_replanning = False
-            if k_projectile_computed:
+            if self.ki_sess.k_projectile_computed:
                 break
             rate.sleep()
 ##############################DONE WORKING#################################
 ###########################################################################
 
-def KISession ( object ):
+class KISession ( object ):
     '''
     Session for kinect cam to capture the projectile
     '''
@@ -433,7 +431,7 @@ def KISession ( object ):
         # Translate ros's data to pointcloud
         ball_points = ros_to_pcl( ros_cloud )
         # Filter out some input
-        if len( self.k_ball_position_estimates ) == 0 and
+        if len( self.k_ball_position_estimates ) == 0 and\
                 ball_points.shape[0] < 1:
             return
         elif ball_points.shape[0] < 50:
@@ -460,26 +458,26 @@ def KISession ( object ):
             self.k_ball_pointcloud.append(ball_points)
 
         # Enable replanning when there's no enough data points
-        if len(self.k_ball_position_estimates) >= 1 and not
+        if len(self.k_ball_position_estimates) >= 1 and not\
                 self.k_projectile_computed:
             self.k_kinect_replanning_available = True
 
         # Save data to pickle files when enough data is obtained
-        if len(self.k_ball_position_estimates) >= 3 and not
+        if len(self.k_ball_position_estimates) >= 3 and not\
                 self.k_projectile_computed:
             print("==============kinect==========================")
             if sc_obj.projectile_computed:
                 save_dict = {}
-                save_dict['sc'] = ( self.ball_position_estimates_base,
-                                    self.ball_time_estimates )
+                save_dict['sc'] = ( sc_obj.ball_position_estimates_base,
+                                    sc_obj.ball_time_estimates )
                 save_dict['sc_points'] = sc_obj.ball_pointcloud
-                save_dict['ki'] = ( self.k_ball_position_estimates,
-                                    self.k_ball_time_estimates )
+                save_dict['ki'] = ( sc_obj.k_ball_position_estimates,
+                                    sc_obj.k_ball_time_estimates )
                 save_dict['ki_points'] = self.k_ball_pointcloud
                 save_dict['TF'] = self.A_FP_KI
                 rospack = rospkg.RosPack()
                 pkg_dir = rospack.get_path('shield_perception')
-                filename = pkg_dir + "/data_dump/calib_data_runs/" +
+                filename = pkg_dir + "/data_dump/calib_data_runs/" +\
                            time.strftime("%Y%m%d-%H%M%S") + '.pickle'
 
                 # Create pickle file in specified path
@@ -489,7 +487,7 @@ def KISession ( object ):
                     print("Saving raw files to ", filename)
                 for estimates in sc_obj.projectile_estimates:
                     # print(estimates, "Estimates")
-                    print(compute_accuracy(
+                    print(track_obj.compute_accuracy(
                           estimates[0],estimates[1],
                           estimates[2],estimates[3],
                           estimates[4],estimates[5])*100.0,
@@ -500,10 +498,10 @@ def KISession ( object ):
             self.k_projectile_computed = True
 
         # if G_DEBUG: debugging info
-        dtype_list =
+        dtype_list =\
             rnp.point_cloud2.fields_to_dtype(ros_cloud.fields,
                                              ros_cloud.point_step)
-        filtered_msg =
+        filtered_msg =\
             xyzrgb_array_to_pointcloud2(ball_points,
                                         np.zeros(ball_points.shape,
                                                  dtype=np.float32),
@@ -514,7 +512,7 @@ def KISession ( object ):
         self.k_publisher.publish(filtered_msg)
 
 
-def SCSession ( object ):
+class SCSession ( object ):
     '''
     Session for structure core to capture the projectile
     '''
@@ -586,7 +584,7 @@ def SCSession ( object ):
                          [track_obj.z_offset],
                          [0.0]])
         self.ball_position_estimates = pr2_frame_points[0:3,:].transpose().tolist()
-        self.first_sc_timestamp = ball_time_estimates_filtered[0]
+        self.first_sc_timestamp = self.ball_time_estimates_filtered[0]
 
 
     # Call back function for structure core
@@ -626,7 +624,7 @@ def SCSession ( object ):
               ros_cloud.header.stamp.to_sec())
         # If collected more than 5 points, mark projectile as computed
         # for structure core
-        if len(self.ball_position_estimates_base) >= 5 and not
+        if len(self.ball_position_estimates_base) >= 5 and not\
                 self.projectile_computed:
             print("=============STRUCTURE CORE===========================",
                   rospy.Time.now().to_sec())
