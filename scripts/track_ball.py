@@ -637,6 +637,11 @@ class SCSession ( object ):
                   [np.array(self.ball_position_estimates_base_filtered).transpose(),
                   np.ones((1,len(self.ball_position_estimates_base_filtered)))],
                   axis=0)
+        print("Dimension of A_FP_SC"+self.A_FP_SC.shape)
+        print("Dimension of res roll"+track_obj.res_roll_A)
+        print("Dimension of res pitch"+track_obj.res_pitch_A)
+        print("Dimension of res yaw"+track_obj.res_yaw_A)
+        print("Dimension of sc points"+sc_points)
         pr2_frame_points = np.linalg.multi_dot(
                          [self.A_FP_SC, track_obj.res_roll_A,
                          track_obj.res_pitch_A, track_obj.res_yaw_A,
