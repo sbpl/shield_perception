@@ -369,7 +369,7 @@ class KISession ( object ):
     '''
     def __init__ ( self ):
         # ROS component
-        self.k_publisher = rospy.Pulisher('/kinect/filtered_points',
+        self.k_publisher = rospy.Publisher('/kinect/filtered_points',
                                           PointCloud2,
                                           queue_size = 1)
         self.k_projectile_marker_pub = rospy.Publisher("kinect_projectile_vis",
@@ -419,10 +419,8 @@ class KISession ( object ):
         rot_mat = tf.transformations.quaternion_matrix(k_tf_rot)
         self.A_FP_KI = np.dot(trans_mat, rot_mat)
 
-    def kinect_callback( self, ros_cloud, args ):
-        # Objects from arguments
-        track_obj = args[0]
-        sc_obj = args[1]
+    
+    def kinect_callback( self, ros_cloud, track_obj, sc_obj ): 
 
         # Return directly if sc have not computed yet or ki is done
         if self.k_projectile_computed or not sc_obj.projectile_computed:
@@ -452,10 +450,10 @@ class KISession ( object ):
               ros_cloud.header.stamp.to_sec())
 
         # Update data structure only if structure core is done
-        if sc_obj.projectile_computed:
+        if sc_obj.projectile_computed: 
             self.k_ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
             self.k_ball_position_estimates.append(ball_position_in_PR2)
-            self.k_ball_pointcloud.append(ball_points)
+	    self.k_ball_pointcloud.append(ball_points)
 
         # Enable replanning when there's no enough data points
         if len(self.k_ball_position_estimates) >= 1 and not\
@@ -518,7 +516,7 @@ class SCSession ( object ):
     '''
     def __init__ ( self ):
         # ROS component
-        self.publisher = rospy.Pulisher('/sc/rgbd/filtered_points',
+        self.publisher = rospy.Publisher('/sc/rgbd/filtered_points',
                                         PointCloud2,
                                         queue_size = 1)
         self.projectile_msg_pub = rospy.Publisher("projectile", 
@@ -588,8 +586,7 @@ class SCSession ( object ):
 
 
     # Call back function for structure core
-    def structure_callback( self, ros_cloud, args ):
-        track_obj = args[0]
+    def structure_callback( self, ros_cloud, track_obj ):
         # Getting spatial limit from track ball object
         y_pos_lim = track_obj.y_pos_lim
         y_neg_lim = track_obj.y_neg_lim
