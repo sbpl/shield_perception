@@ -122,8 +122,8 @@ def kinect_callback( ros_cloud, args ):
             save_dict['sc'] = ( sc_obj.ball_position_estimates_base,
                                 sc_obj.ball_time_estimates )
             save_dict['sc_points'] = sc_obj.ball_pointcloud
-            save_dict['ki'] = ( sc_obj.k_ball_position_estimates,
-                                sc_obj.k_ball_time_estimates )
+            save_dict['ki'] = ( ki_obj.k_ball_position_estimates,
+                                ki_obj.k_ball_time_estimates )
             save_dict['ki_points'] = ki_obj.k_ball_pointcloud
             save_dict['TF'] = ki_obj.A_FP_KI
             rospack = rospkg.RosPack()
@@ -136,7 +136,7 @@ def kinect_callback( ros_cloud, args ):
                 pickle.dump(save_dict, handle,
                             protocol=pickle.HIGHEST_PROTOCOL)
                 print("Saving raw files to ", filename)
-            for estimates in sc_obj.projectile_estimates:
+            for estimates in track_obj.projectile_estimates:
                 # print(estimates, "Estimates")
                 print(track_obj.compute_accuracy(
                       estimates[0],estimates[1],
@@ -438,6 +438,10 @@ class TrackBall( object ) :
         # Init ROS node(process)
         rospy.init_node('c_p_calibrate')
 
+	# Find TF
+	self.sc_sess.sc_find_FP()
+	self.ki_sess.ki_find_FP()
+
         # Subscribe to cam output with callback functions
         rospy.Subscriber("/kinect_filtered/output", PointCloud2,
                          kinect_callback,
@@ -637,11 +641,6 @@ class SCSession ( object ):
                   [np.array(self.ball_position_estimates_base_filtered).transpose(),
                   np.ones((1,len(self.ball_position_estimates_base_filtered)))],
                   axis=0)
-        print("Dimension of A_FP_SC"+self.A_FP_SC.shape)
-        print("Dimension of res roll"+track_obj.res_roll_A)
-        print("Dimension of res pitch"+track_obj.res_pitch_A)
-        print("Dimension of res yaw"+track_obj.res_yaw_A)
-        print("Dimension of sc points"+sc_points)
         pr2_frame_points = np.linalg.multi_dot(
                          [self.A_FP_SC, track_obj.res_roll_A,
                          track_obj.res_pitch_A, track_obj.res_yaw_A,
