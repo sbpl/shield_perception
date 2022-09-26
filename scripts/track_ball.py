@@ -68,6 +68,154 @@ def ros_to_pcl(ros_cloud):
         points_list.append([data[0], data[1], data[2]])
     return np.array(points_list)
 
+# Kinect callback function
+def kinect_callback( ros_cloud, track_obj, sc_obj, ki_obj ): 
+
+    # Return directly if sc have not computed yet or ki is done
+    if ki_obj.k_projectile_computed or not sc_obj.projectile_computed:
+        return
+
+    # Translate ros's data to pointcloud
+    ball_points = ros_to_pcl( ros_cloud )
+    # Filter out some input
+    if len( ki_obj.k_ball_position_estimates ) == 0 and\
+            ball_points.shape[0] < 1:
+        return
+    elif ball_points.shape[0] < 50:
+        return
+
+    # Process data collected
+    ball_position = np.mean(ball_points, axis=0)
+    hom_ball_position = np.ones((4,1))
+    hom_ball_position[0,0] = ball_position[0]
+    hom_ball_position[2,0] = ball_position[2]
+    hom_ball_position[1,0] = ball_position[1]
+    # Caculate ball position with repect to PC2
+    P_FP_B = np.dot( ki_obj.A_FP_KI, hom_ball_position )
+    ball_position_in_PR2 = P_FP_B[0:3,0]/P_FP_B[3,0]
+    print("kinect Ball points",
+          ball_points.shape[0],
+          ball_position_in_PR2,
+          ros_cloud.header.stamp.to_sec())
+
+    # Update data structure only if structure core is done
+    if sc_obj.projectile_computed: 
+        ki_obj.k_ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
+        ki_obj.k_ball_position_estimates.append(ball_position_in_PR2)
+    ki_obj.k_ball_pointcloud.append(ball_points)
+
+    # Enable replanning when there's no enough data points
+    if len(ki_obj.k_ball_position_estimates) >= 1 and not\
+            ki_obj.k_projectile_computed:
+        ki_obj.k_kinect_replanning_available = True
+
+    # Save data to pickle files when enough data is obtained
+    if len(ki_obj.k_ball_position_estimates) >= 3 and not\
+            ki_obj.k_projectile_computed:
+        print("==============kinect==========================")
+        if sc_obj.projectile_computed:
+            save_dict = {}
+            save_dict['sc'] = ( sc_obj.ball_position_estimates_base,
+                                sc_obj.ball_time_estimates )
+            save_dict['sc_points'] = sc_obj.ball_pointcloud
+            save_dict['ki'] = ( sc_obj.k_ball_position_estimates,
+                                sc_obj.k_ball_time_estimates )
+            save_dict['ki_points'] = ki_obj.k_ball_pointcloud
+            save_dict['TF'] = ki_obj.A_FP_KI
+            rospack = rospkg.RosPack()
+            pkg_dir = rospack.get_path('shield_perception')
+            filename = pkg_dir + "/data_dump/calib_data_runs/" +\
+                       time.strftime("%Y%m%d-%H%M%S") + '.pickle'
+
+            # Create pickle file in specified path
+            with open(filename, 'wb') as handle:
+                pickle.dump(save_dict, handle,
+                            protocol=pickle.HIGHEST_PROTOCOL)
+                print("Saving raw files to ", filename)
+            for estimates in sc_obj.projectile_estimates:
+                # print(estimates, "Estimates")
+                print(track_obj.compute_accuracy(
+                      estimates[0],estimates[1],
+                      estimates[2],estimates[3],
+                      estimates[4],estimates[5])*100.0,
+                      "Errors (cm)")
+                print("Time Diff (s) = ",
+                      ki_obj.k_ball_time_estimates[0]-\
+                      sc_obj.ball_time_estimates[-1])
+        ki_obj.k_projectile_computed = True
+
+    # if G_DEBUG: debugging info
+    dtype_list =\
+        rnp.point_cloud2.fields_to_dtype(ros_cloud.fields,
+                                         ros_cloud.point_step)
+    filtered_msg =\
+        xyzrgb_array_to_pointcloud2(ball_points,
+                                    np.zeros(ball_points.shape,
+                                             dtype=np.float32),
+                                    ros_cloud.header.stamp,
+                                    ros_cloud.header.frame_id,
+                                    ros_cloud.header.seq)
+    # Pulish
+    ki_obj.k_publisher.publish(filtered_msg)
+
+# Call back function for structure core
+def structure_callback( ros_cloud, track_obj, sc_obj, ki_obj ):
+    # Getting spatial limit from track ball object
+    y_pos_lim = track_obj.y_pos_lim
+    y_neg_lim = track_obj.y_neg_lim
+    z_pos_lim = track_obj.z_pos_lim
+    z_neg_lim = track_obj.z_neg_lim
+    # If projectile already computed, just return
+    if sc_obj.projectile_computed:
+        return
+    # Converting point cloud to python vectors
+    point_list = []
+    pc = rnp.numpify(ros_cloud)
+    points = np.zeros((pc.shape[0],3))
+    points[:,0] = pc['x']
+    points[:,1] = pc['y']
+    points[:,2] = pc['z']
+    # Filter out some points that exceed spatial limit
+    ball_points = points[points[:,1]>y_neg_lim,:]
+    ball_points = ball_points[ball_points[:,1]<y_pos_lim,:]
+    ball_points = ball_points[ball_points[:,2]>z_neg_lim,:]
+    ball_points = ball_points[ball_points[:,2]<z_pos_lim,:]
+    # Only count the points when sc capture enough (15+) points
+    if(ball_points.shape[0]<15):
+        return
+    ball_position = np.mean(ball_points, axis=0)
+    # Save data into data structure in object
+    sc_obj.ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
+    sc_obj.ball_position_estimates_base.append(ball_position)
+    sc_obj.ball_pointcloud.append(ball_points)
+    # Print out data for debugging purpose
+    print("Structure Core Ball points",
+          ball_points.shape[0], ball_position,
+          ros_cloud.header.stamp.to_sec())
+    # If collected more than 5 points, mark projectile as computed
+    # for structure core
+    if len(sc_obj.ball_position_estimates_base) >= 5 and not\
+            sc_obj.projectile_computed:
+        print("=============STRUCTURE CORE===========================",
+              rospy.Time.now().to_sec())
+        sc_obj.projectile_computed = True
+    # If debug mode is set, publish data collected to filterd_msg
+    if track_obj.g_debug:
+        dtype_list = rnp.point_cloud2.fields_to_dtype(
+                   ros_cloud.fields,
+                   ros_cloud.point_step )
+        filtered_msg = xyzrgb_array_to_pointcloud2(
+                     ball_points,
+                     np.zeros(ball_points.shape, dtype=np.float32),
+                     ros_cloud.header.stamp,
+                     "launcher_camera",
+                     ros_cloud.header.seq )
+        sc_obj.publisher.publish(filtered_msg)
+    # Timer for loop time
+    # t3 = rospy.Time.now().to_sec()
+    # print(t3-t1,t2-t1, "loop time")
+
+
 ##########################################################################
 #############################Classes######################################
 class TrackBall( object ) :
@@ -285,11 +433,11 @@ class TrackBall( object ) :
 
         # Subscribe to cam output with callback functions
         rospy.Subscriber("/kinect_filtered/output", PointCloud2,
-                         self.ki_sess.kinect_callback,
-                         callback_args=(self,self.sc_sess))
+                         kinect_callback,
+                         callback_args=(self,self.sc_sess,self.ki_sess))
         rospy.Subscriber("/external_filtered/output", PointCloud2,
-                         self.sc_sess.structure_callback,
-                         callback_args=self)
+                         structure_callback,
+                         callback_args=(self,self.sc_sess,self.ki_sess))
 
         # Load pre-save params files
         # params = [0.404571, 0.13428446, 0.35198332,
@@ -419,96 +567,6 @@ class KISession ( object ):
         rot_mat = tf.transformations.quaternion_matrix(k_tf_rot)
         self.A_FP_KI = np.dot(trans_mat, rot_mat)
 
-    
-    def kinect_callback( self, ros_cloud, track_obj, sc_obj ): 
-
-        # Return directly if sc have not computed yet or ki is done
-        if self.k_projectile_computed or not sc_obj.projectile_computed:
-            return
-
-        # Translate ros's data to pointcloud
-        ball_points = ros_to_pcl( ros_cloud )
-        # Filter out some input
-        if len( self.k_ball_position_estimates ) == 0 and\
-                ball_points.shape[0] < 1:
-            return
-        elif ball_points.shape[0] < 50:
-            return
-
-        # Process data collected
-        ball_position = np.mean(ball_points, axis=0)
-        hom_ball_position = np.ones((4,1))
-        hom_ball_position[0,0] = ball_position[0]
-        hom_ball_position[2,0] = ball_position[2]
-        hom_ball_position[1,0] = ball_position[1]
-        # Caculate ball position with repect to PC2
-        P_FP_B = np.dot( self.A_FP_KI, hom_ball_position )
-        ball_position_in_PR2 = P_FP_B[0:3,0]/P_FP_B[3,0]
-        print("kinect Ball points",
-              ball_points.shape[0],
-              ball_position_in_PR2,
-              ros_cloud.header.stamp.to_sec())
-
-        # Update data structure only if structure core is done
-        if sc_obj.projectile_computed: 
-            self.k_ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
-            self.k_ball_position_estimates.append(ball_position_in_PR2)
-	    self.k_ball_pointcloud.append(ball_points)
-
-        # Enable replanning when there's no enough data points
-        if len(self.k_ball_position_estimates) >= 1 and not\
-                self.k_projectile_computed:
-            self.k_kinect_replanning_available = True
-
-        # Save data to pickle files when enough data is obtained
-        if len(self.k_ball_position_estimates) >= 3 and not\
-                self.k_projectile_computed:
-            print("==============kinect==========================")
-            if sc_obj.projectile_computed:
-                save_dict = {}
-                save_dict['sc'] = ( sc_obj.ball_position_estimates_base,
-                                    sc_obj.ball_time_estimates )
-                save_dict['sc_points'] = sc_obj.ball_pointcloud
-                save_dict['ki'] = ( sc_obj.k_ball_position_estimates,
-                                    sc_obj.k_ball_time_estimates )
-                save_dict['ki_points'] = self.k_ball_pointcloud
-                save_dict['TF'] = self.A_FP_KI
-                rospack = rospkg.RosPack()
-                pkg_dir = rospack.get_path('shield_perception')
-                filename = pkg_dir + "/data_dump/calib_data_runs/" +\
-                           time.strftime("%Y%m%d-%H%M%S") + '.pickle'
-
-                # Create pickle file in specified path
-                with open(filename, 'wb') as handle:
-                    pickle.dump(save_dict, handle,
-                                protocol=pickle.HIGHEST_PROTOCOL)
-                    print("Saving raw files to ", filename)
-                for estimates in sc_obj.projectile_estimates:
-                    # print(estimates, "Estimates")
-                    print(track_obj.compute_accuracy(
-                          estimates[0],estimates[1],
-                          estimates[2],estimates[3],
-                          estimates[4],estimates[5])*100.0,
-                          "Errors (cm)")
-                    print("Time Diff (s) = ",
-                          self.k_ball_time_estimates[0]-\
-                          sc_obj.ball_time_estimates[-1])
-            self.k_projectile_computed = True
-
-        # if G_DEBUG: debugging info
-        dtype_list =\
-            rnp.point_cloud2.fields_to_dtype(ros_cloud.fields,
-                                             ros_cloud.point_step)
-        filtered_msg =\
-            xyzrgb_array_to_pointcloud2(ball_points,
-                                        np.zeros(ball_points.shape,
-                                                 dtype=np.float32),
-                                        ros_cloud.header.stamp,
-                                        ros_cloud.header.frame_id,
-                                        ros_cloud.header.seq)
-        # Pulish
-        self.k_publisher.publish(filtered_msg)
-
 
 class SCSession ( object ):
     '''
@@ -584,63 +642,6 @@ class SCSession ( object ):
         self.ball_position_estimates = pr2_frame_points[0:3,:].transpose().tolist()
         self.first_sc_timestamp = self.ball_time_estimates_filtered[0]
 
-
-    # Call back function for structure core
-    def structure_callback( self, ros_cloud, track_obj ):
-        # Getting spatial limit from track ball object
-        y_pos_lim = track_obj.y_pos_lim
-        y_neg_lim = track_obj.y_neg_lim
-        z_pos_lim = track_obj.z_pos_lim
-        z_neg_lim = track_obj.z_neg_lim
-        # If projectile already computed, just return
-        if self.projectile_computed:
-            return
-        # Converting point cloud to python vectors
-        point_list = []
-        pc = rnp.numpify(ros_cloud)
-        points = np.zeros((pc.shape[0],3))
-        points[:,0] = pc['x']
-        points[:,1] = pc['y']
-        points[:,2] = pc['z']
-        # Filter out some points that exceed spatial limit
-        ball_points = points[points[:,1]>y_neg_lim,:]
-        ball_points = ball_points[ball_points[:,1]<y_pos_lim,:]
-        ball_points = ball_points[ball_points[:,2]>z_neg_lim,:]
-        ball_points = ball_points[ball_points[:,2]<z_pos_lim,:]
-        # Only count the points when sc capture enough (15+) points
-        if(ball_points.shape[0]<15):
-            return
-        ball_position = np.mean(ball_points, axis=0)
-        # Save data into data structure in object
-        self.ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
-        self.ball_position_estimates_base.append(ball_position)
-        self.ball_pointcloud.append(ball_points)
-        # Print out data for debugging purpose
-        print("Structure Core Ball points",
-              ball_points.shape[0], ball_position,
-              ros_cloud.header.stamp.to_sec())
-        # If collected more than 5 points, mark projectile as computed
-        # for structure core
-        if len(self.ball_position_estimates_base) >= 5 and not\
-                self.projectile_computed:
-            print("=============STRUCTURE CORE===========================",
-                  rospy.Time.now().to_sec())
-            self.projectile_computed = True
-        # If debug mode is set, publish data collected to filterd_msg
-        if track_obj.g_debug:
-            dtype_list = rnp.point_cloud2.fields_to_dtype(
-                       ros_cloud.fields,
-                       ros_cloud.point_step )
-            filtered_msg = xyzrgb_array_to_pointcloud2(
-                         ball_points,
-                         np.zeros(ball_points.shape, dtype=np.float32),
-                         ros_cloud.header.stamp,
-                         "launcher_camera",
-                         ros_cloud.header.seq )
-            self.publisher.publish(filtered_msg)
-        # Timer for loop time
-        # t3 = rospy.Time.now().to_sec()
-        # print(t3-t1,t2-t1, "loop time")
 
 if __name__ == '__main__':
     track_ball = TrackBall()
