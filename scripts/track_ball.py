@@ -69,7 +69,11 @@ def ros_to_pcl(ros_cloud):
     return np.array(points_list)
 
 # Kinect callback function
-def kinect_callback( ros_cloud, track_obj, sc_obj, ki_obj ): 
+def kinect_callback( ros_cloud, args ):
+
+    track_obj = args[0]
+    sc_obj = args[1]
+    ki_obj = args[2]
 
     # Return directly if sc have not computed yet or ki is done
     if ki_obj.k_projectile_computed or not sc_obj.projectile_computed:
@@ -159,7 +163,10 @@ def kinect_callback( ros_cloud, track_obj, sc_obj, ki_obj ):
     ki_obj.k_publisher.publish(filtered_msg)
 
 # Call back function for structure core
-def structure_callback( ros_cloud, track_obj, sc_obj, ki_obj ):
+def structure_callback( ros_cloud, args ):
+    track_obj = args[0]
+    sc_obj = args[1]
+    ki_obj = args[2]
     # Getting spatial limit from track ball object
     y_pos_lim = track_obj.y_pos_lim
     y_neg_lim = track_obj.y_neg_lim
