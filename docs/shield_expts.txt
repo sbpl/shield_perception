@@ -2,7 +2,7 @@ Notes:
 -> Do not run cam without lappy on charge
 
 Steps:
-ssh pr@10.68.0.1
+ssh pr2@10.68.0.1
 Stuff to launch on the robot - 
 Start Estop 
 Tmux start
