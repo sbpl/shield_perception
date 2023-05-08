@@ -438,9 +438,9 @@ class TrackBall( object ) :
         # Init ROS node(process)
         rospy.init_node('c_p_calibrate')
 
-	# Find TF
-	self.sc_sess.sc_find_FP()
-	self.ki_sess.ki_find_FP()
+        # Find TF
+        self.sc_sess.sc_find_FP()
+        self.ki_sess.ki_find_FP()
 
         # Subscribe to cam output with callback functions
         rospy.Subscriber("/kinect_filtered/output", PointCloud2,
