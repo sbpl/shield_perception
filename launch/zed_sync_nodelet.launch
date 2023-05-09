@@ -37,14 +37,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <arg name="gpu_id"                default="-1" />
 
     <!-- Position respect to base frame (i.e. "base_link) -->
-    <arg name="cam_pos_x"             default="0.0" />
-    <arg name="cam_pos_y"             default="0.0" />
-    <arg name="cam_pos_z"             default="0.0" />
+    <arg name="cam_pos_x"             default="0.8763" />
+    <arg name="cam_pos_y"             default="0.2286" />
+    <arg name="cam_pos_z"             default="0.01905" />
 
     <!-- Orientation respect to base frame (i.e. "base_link) -->
     <arg name="cam_roll"              default="0.0" />
     <arg name="cam_pitch"             default="0.0" />
-    <arg name="cam_yaw"               default="0.0" />
+    <arg name="cam_yaw"               default="0.2787" />
 
     <!-- Name of the Nodelet Manager -->
     <arg name="nodelet_manager_name"  default="$(arg camera_name)_nodelet_manager" />
@@ -59,7 +59,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <arg name="camera_name"                     value="$(arg camera_name)" />
             <arg name="svo_file"                        value="$(arg svo_file)" />
             <arg name="stream"                          value="$(arg stream)" />
-            <arg name="node_name"                      value="$(arg zed_nodelet_name)" />
+            <arg name="node_name"                       value="$(arg zed_nodelet_name)" />
             <arg name="camera_model"                    value="$(arg camera_model)" />
             <arg name="base_frame"                      value="$(arg base_frame)" />
             <arg name="publish_urdf"                    value="$(arg publish_urdf)" />

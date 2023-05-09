@@ -4,6 +4,7 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /Global Options1
         - /RobotModel1/Status1
         - /Depth1
         - /Depth1/PointCloud21
@@ -114,15 +115,9 @@ Visualization Manager:
         All Enabled: false
         base_link:
           Value: true
-        map:
-          Value: true
-        odom:
-          Value: true
         zed2i_base_link:
           Value: true
         zed2i_camera_center:
-          Value: true
-        zed2i_imu_link:
           Value: true
         zed2i_left_camera_frame:
           Value: true
@@ -139,19 +134,15 @@ Visualization Manager:
       Show Axes: true
       Show Names: false
       Tree:
-        map:
-          odom:
-            base_link:
-              zed2i_base_link:
-                zed2i_camera_center:
-                  zed2i_left_camera_frame:
-                    zed2i_imu_link:
-                      {}
-                    zed2i_left_camera_optical_frame:
-                      {}
-                  zed2i_right_camera_frame:
-                    zed2i_right_camera_optical_frame:
-                      {}
+        base_link:
+          zed2i_base_link:
+            zed2i_camera_center:
+              zed2i_left_camera_frame:
+                zed2i_left_camera_optical_frame:
+                  {}
+              zed2i_right_camera_frame:
+                zed2i_right_camera_optical_frame:
+                  {}
       Update Interval: 0
       Value: true
     - Class: rviz/Group
@@ -226,8 +217,8 @@ Visualization Manager:
         - Alpha: 0.699999988079071
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 8.00307559967041
-            Min Value: 0.891761839389801
+            Max Value: 7.315227508544922
+            Min Value: 1.6040658950805664
             Value: true
           Axis: X
           Channel Name: intensity
@@ -530,7 +521,7 @@ Visualization Manager:
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: map
+    Fixed Frame: base_link
     Frame Rate: 30
   Name: root
   Tools:

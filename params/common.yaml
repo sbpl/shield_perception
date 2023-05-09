@@ -14,10 +14,10 @@ gain:                       100                                 # Dynamic - work
 exposure:                   100                                 # Dynamic - works only if `auto_exposure_gain` is false
 auto_whitebalance:          true                                # Dynamic
 whitebalance_temperature:   42                                  # Dynamic - works only if `auto_whitebalance` is false
-depth_confidence:           40                                  # Dynamic
-depth_texture_conf:         100                                 # Dynamic
-pub_frame_rate:             60.0                                # Dynamic - frequency of publishing of video and depth data
-point_cloud_freq:           60.0                                # Dynamic - frequency of the pointcloud publishing (equal or less to `grab_frame_rate` value)
+depth_confidence:           50                                  # Dynamic
+depth_texture_conf:         70                                 # Dynamic
+pub_frame_rate:             100.0                                # Dynamic - frequency of publishing of video and depth data
+point_cloud_freq:           100.0                                # Dynamic - frequency of the pointcloud publishing (equal or less to `grab_frame_rate` value)
 
 general:
     camera_name:                zed                             # A name for the camera (can be different from camera model and node name and can be overwritten by the launch file)
@@ -40,18 +40,18 @@ depth:
     depth_downsample_factor:    0.5                             # Resample factor for depth data matrices [0.01,1.0] The SDK works with native data sizes, but publishes rescaled matrices (depth map, point cloud, ...)
 
 pos_tracking:
-    pos_tracking_enabled:       true                            # True to enable positional tracking from start
-    imu_fusion:                 true                            # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
-    publish_tf:                 true                            # publish `odom -> base_link` TF
-    publish_map_tf:             true                            # publish `map -> odom` TF
+    pos_tracking_enabled:       false                           # True to enable positional tracking from start
+    imu_fusion:                 false                           # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
+    publish_tf:                 false                           # publish `odom -> base_link` TF
+    publish_map_tf:             false                           # publish `map -> odom` TF
     map_frame:                  'map'                           # main frame
     odometry_frame:             'odom'                          # odometry frame
     area_memory_db_path:        'zed_area_memory.area'          # file loaded when the node starts to restore the "known visual features" map. 
     save_area_memory_db_on_exit: false                          # save the "known visual features" map when the node is correctly closed to the path indicated by `area_memory_db_path`
-    area_memory:                true                            # Enable to detect loop closure
+    area_memory:                false                            # Enable to detect loop closure
     floor_alignment:            false                           # Enable to automatically calculate camera/floor offset
-    initial_base_pose:          [0.0,0.0,0.0, 0.0,0.0,0.0]      # Initial position of the `base_frame` -> [X, Y, Z, R, P, Y]
-    init_odom_with_first_valid_pose: true                       # Enable to initialize the odometry with the first valid pose
+    initial_base_pose:          [0.8763,0.2286,0.01905,0.0,0.0,0.2787]      # Initial position of the `base_frame` -> [X, Y, Z, R, P, Y] in incheS: 34.5, 9, 0.75
+    init_odom_with_first_valid_pose: false                      # Enable to initialize the odometry with the first valid pose
     path_pub_rate:              2.0                             # Camera trajectory publishing frequency
     path_max_count:             -1                              # use '-1' for unlimited path size
     two_d_mode:                 false                           # Force navigation on a plane. If true the Z value will be fixed to "fixed_z_value", roll and pitch to zero
@@ -67,7 +67,7 @@ mapping:
 sensors:
     sensors_timestamp_sync:     false                           # Synchronize Sensors messages timestamp with latest received frame
     max_pub_rate:               400.                            # max frequency of publishing of sensors data. MAX: 400. - MIN: grab rate
-    publish_imu_tf:             true                            # publish `IMU -> <cam_name>_left_camera_frame` TF
+    publish_imu_tf:             false                            # publish `IMU -> <cam_name>_left_camera_frame` TF
 
 object_detection:
     od_enabled:                 false                           # True to enable Object Detection [not available for ZED]
