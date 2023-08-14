@@ -1,1 +1,3 @@
 *.pickle
+*.pkl
+scripts/camera_calibration/calib_data
