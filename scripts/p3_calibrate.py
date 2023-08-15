@@ -57,6 +57,8 @@ def compute_single_error(sc_points, sc_times, ki_points, ki_times, params):
                       [0,0,0,1]])
     pr2_frame_points = np.linalg.multi_dot([g_A_FP_SC,res_roll_A,res_pitch_A,res_yaw_A,sc_points])
     pr2_frame_points += np.array([[x_off],[y_off],[z_off],[1.0]])
+    # Debugging
+    print(pr2_frame_points)
 
     ## Compute projectile velocity
     s, e = 0, pr2_frame_points.shape[1]-1
@@ -587,7 +589,7 @@ def main():
     
     # params = list((0,0,0,0,0,0,np.random.uniform(0.01, 0.03)))
     # params = list(np.load(param_file_url).tolist())
-    params = [0.404571, 0.13428446, 0.35198332, 1.5798978885211274, -8.995515878771856, -0.34771949149796966, 0.01176908]
+    params = [0.104571, 0.13428446, 0.35198332, 1.5798978885211274, -8.995515878771856, -0.34771949149796966, 0.01176908]
     params[3] = params[3]*np.pi/180.0
     params[4] = params[4]*np.pi/180.0
     params[5] = params[5]*np.pi/180.0
@@ -600,5 +602,26 @@ def main():
     best_params[5] = best_params[5]*180.0/np.pi
     np.save(param_file_url,np.array(best_params))
     print("Best params", best_params)
+
+    print("Debugging: Print PR2 Frame point")
+    global g_A_FP_SC, gravity, mass_ball
+    ## Convert SC points to PR2 frame
+    x_off, y_off, z_off, roll, pitch, yaw, C = best_params
+    res_pitch_A = np.array([[1,0,0,0],
+                      [0,np.cos(pitch),-np.sin(pitch),0],
+                      [0,np.sin(pitch),np.cos(pitch),0],
+                      [0,0,0,1]])
+    res_yaw_A = np.array([[np.cos(yaw),0,np.sin(yaw),0],
+                      [0,1.0,0,0],
+                      [-np.sin(yaw),0,np.cos(yaw),0],
+                      [0,0,0,1]])
+    res_roll_A = np.array([[np.cos(roll),-np.sin(roll),0,0],
+                      [np.sin(roll),np.cos(roll),0,0],
+                      [0,0,1,0],
+                      [0,0,0,1]])
+    pr2_frame_points = np.linalg.multi_dot([g_A_FP_SC,res_roll_A,res_pitch_A,res_yaw_A])
+    pr2_frame_points += np.array([[x_off],[y_off],[z_off],[1.0]])
+    # Debugging
+    print(pr2_frame_points)
 
 main()

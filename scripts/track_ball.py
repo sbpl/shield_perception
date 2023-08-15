@@ -103,7 +103,7 @@ def kinect_callback( ros_cloud, args ):
           ros_cloud.header.stamp.to_sec())
 
     # Update data structure only if structure core is done
-    if sc_obj.projectile_computed: 
+    if sc_obj.projectile_computed:
         ki_obj.k_ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
         ki_obj.k_ball_position_estimates.append(ball_position_in_PR2)
     ki_obj.k_ball_pointcloud.append(ball_points)
@@ -240,7 +240,7 @@ class TrackBall( object ) :
         self.y_width = 1.2218*0.97
         self.z_pos_lim = 3.
         self.z_neg_lim = 0.01
-        self.vel_scale = 1.0 # Not used 
+        self.vel_scale = 1.0 # Not used
         self.z_offset = 0.0
         self.x_offset = 0.0
         self.y_offset = 0.0
@@ -438,9 +438,9 @@ class TrackBall( object ) :
         # Init ROS node(process)
         rospy.init_node('c_p_calibrate')
 
-	# Find TF
-	self.sc_sess.sc_find_FP()
-	self.ki_sess.ki_find_FP()
+        # Find TF
+        self.sc_sess.sc_find_FP()
+        self.ki_sess.ki_find_FP()
 
         # Subscribe to cam output with callback functions
         rospy.Subscriber("/kinect_filtered/output", PointCloud2,
@@ -454,7 +454,7 @@ class TrackBall( object ) :
         # params = [0.404571, 0.13428446, 0.35198332,
         #           1.5798978885211274, -8.995515878771856,
         #           -0.34771949149796966, 0.01176908]
-        # drag_coeff = 0.01176908 
+        # drag_coeff = 0.01176908
         rospack = rospkg.RosPack()
         pkg_dir = rospack.get_path('shield_perception')
         param_filename = pkg_dir + "/data_dump/perception_params.npy"
@@ -588,7 +588,7 @@ class SCSession ( object ):
         self.publisher = rospy.Publisher('/sc/rgbd/filtered_points',
                                         PointCloud2,
                                         queue_size = 1)
-        self.projectile_msg_pub = rospy.Publisher("projectile", 
+        self.projectile_msg_pub = rospy.Publisher("projectile",
                                                   Projectile,
                                                   queue_size=1)
         self.projectile_marker_pub = rospy.Publisher("projectile_vis",
