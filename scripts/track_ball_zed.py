@@ -163,7 +163,7 @@ def kinect_callback( ros_cloud, args ):
     ki_obj.k_publisher.publish(filtered_msg)
 
 # Call back function for structure core
-def structure_callback( ros_cloud, args ):
+def structure_callback1( ros_cloud, args ):
     track_obj = args[0]
     sc_obj = args[1]
     # ki_obj = args[2]
@@ -190,6 +190,67 @@ def structure_callback( ros_cloud, args ):
     # Only count the points when sc capture enough (15+) points
     if(ball_points.shape[0]<3):
         return
+    ball_position = np.mean(ball_points, axis=0)
+    # Save data into data structure in object
+    sc_obj.ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
+    sc_obj.ball_position_estimates_base.append(ball_position)
+    sc_obj.ball_pointcloud.append(ball_points)
+    # Print out data for debugging purpose
+    print("Structure Core Ball points",
+          ball_points.shape[0], ball_position,
+          ros_cloud.header.stamp.to_sec())
+    # If collected more than 5 points, mark projectile as computed
+    # for structure core
+    if len(sc_obj.ball_position_estimates_base) >= 3 and not\
+            sc_obj.projectile_computed:
+        print("=============STRUCTURE CORE===========================",
+              rospy.Time.now().to_sec())
+        sc_obj.projectile_computed = True
+    # If debug mode is set, publish data collected to filterd_msg
+    if track_obj.g_debug:
+        dtype_list = rnp.point_cloud2.fields_to_dtype(
+                   ros_cloud.fields,
+                   ros_cloud.point_step )
+        filtered_msg = xyzrgb_array_to_pointcloud2(
+                     ball_points,
+                     np.zeros(ball_points.shape, dtype=np.float64),
+                     ros_cloud.header.stamp,
+                     "launcher_camera",
+                     ros_cloud.header.seq )
+        sc_obj.publisher.publish(filtered_msg)
+    # Timer for loop time
+    # t3 = rospy.Time.now().to_sec()
+    # print(t3-t1,t2-t1, "loop time")
+
+    def structure_callback2( ros_cloud, args ):
+    track_obj = args[0]
+    sc_obj = args[1]
+    # ki_obj = args[2]
+    # Getting spatial limit from track ball object
+    y_pos_lim = track_obj.y_pos_lim
+    y_neg_lim = track_obj.y_neg_lim
+    z_pos_lim = track_obj.z_pos_lim
+    z_neg_lim = track_obj.z_neg_lim
+    # If projectile already computed, just return
+    if sc_obj.projectile_computed:
+        return
+    # Converting point cloud to python vectors
+    point_list = []
+    pc = rnp.numpify(ros_cloud)
+    points = np.zeros((pc.shape[0],3))
+    # Note that there should only be one point here
+    points[:,0] = pc['x']
+    points[:,1] = pc['y']
+    points[:,2] = pc['z']
+    # Filter out some points that exceed spatial limit
+    ball_points = points[points[:,1]>y_neg_lim,:]
+    ball_points = ball_points[ball_points[:,1]<y_pos_lim,:]
+    ball_points = ball_points[ball_points[:,2]>z_neg_lim,:]
+    ball_points = ball_points[ball_points[:,2]<z_pos_lim,:]
+    # Only count the points when sc capture enough (15+) points 
+    # Not applicable, only one point is provided here
+    # if(ball_points.shape[0]<3):
+    #     return
     ball_position = np.mean(ball_points, axis=0)
     # Save data into data structure in object
     sc_obj.ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
@@ -446,8 +507,15 @@ class TrackBall( object ) :
         # rospy.Subscriber("/kinect_filtered/output", PointCloud2,
         #                  kinect_callback,
         #                  callback_args=(self,self.sc_sess,self.ki_sess))
-        rospy.Subscriber("/zed_filtered/output", PointCloud2,
-                         structure_callback,
+
+        ## Using bounding box
+        # rospy.Subscriber("/zed_filtered/output", PointCloud2,
+        #                  structure_callback1,
+        #                  callback_args=(self,self.sc_sess))
+        
+        ## Using Color filtering
+        rospy.Subscriber("/zed2i/filtered_point_cloud", PointCloud2,
+                         structure_callback2,
                          callback_args=(self,self.sc_sess))
 
         # Load pre-save params files

@@ -75,13 +75,13 @@ def callback(rgb_msg, depth_msg, pc_msg, confidence_msg):
 
 def main():
     rospy.init_node('zed_subscriber', anonymous=True)
-    pub = rospy.Publisher('/zed2i/filtered_point_cloud', PointCloud2, queue_size=10)
+    pub = rospy.Publisher('/zed/filtered_point_cloud', PointCloud2, queue_size=10)
 
     # Subscribe to the RGB, Depth, Point Cloud, and Confidence topics using message_filters
     rgb_sub = message_filters.Subscriber('/zed2i/rgb/image_rect_color', Image)
-    depth_sub = message_filters.Subscriber('/zed2i/depth/depth_registered', Image)
-    point_cloud_sub = message_filters.Subscriber('/zed2i/point_cloud/cloud_registered', PointCloud2)
-    confidence_sub = message_filters.Subscriber('/zed2i/confidence/confidence_map', Image)
+    depth_sub = message_filters.Subscriber('/zed/depth/depth_registered', Image)
+    point_cloud_sub = message_filters.Subscriber('/zed/point_cloud/cloud_registered', PointCloud2)
+    confidence_sub = message_filters.Subscriber('/zed/confidence/confidence_map', Image)
 
     ts = message_filters.TimeSynchronizer([rgb_sub, depth_sub, point_cloud_sub, confidence_sub], 10)
     ts.registerCallback(callback)
