@@ -2,3 +2,4 @@
 *.pkl
 scripts/camera_calibration/calib_data
 __pycache__
+.idea

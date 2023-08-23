@@ -37,14 +37,24 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <arg name="gpu_id"                default="-1" />
 
     <!-- Position respect to base frame (i.e. "base_link) -->
-    <arg name="cam_pos_x"             default="0.8763" />
+    <!-- manual calib -->
+    <!-- <arg name="cam_pos_x"             default="0.8763" />
     <arg name="cam_pos_y"             default="0.2286" />
-    <arg name="cam_pos_z"             default="0.01905" />
+    <arg name="cam_pos_z"             default="0.01905" /> -->
+    <!-- auto calib -->
+    <arg name="cam_pos_x"             default="0.80622571" />
+    <arg name="cam_pos_y"             default="0.27945645" />
+    <arg name="cam_pos_z"             default="0.02301269" />
 
     <!-- Orientation respect to base frame (i.e. "base_link) -->
-    <arg name="cam_roll"              default="0.0" />
+    <!-- manual calib -->
+    <!-- <arg name="cam_roll"              default="0.0" />
     <arg name="cam_pitch"             default="0.0" />
-    <arg name="cam_yaw"               default="0.2787" />
+    <arg name="cam_yaw"               default="0.2787" /> -->
+    <!-- auto calib -->
+    <arg name="cam_roll"              default="0.01642828" />
+    <arg name="cam_pitch"             default="-0.45339249" />
+    <arg name="cam_yaw"               default="0.23978805" />
 
     <!-- Name of the Nodelet Manager -->
     <arg name="nodelet_manager_name"  default="$(arg camera_name)_nodelet_manager" />

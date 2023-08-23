@@ -188,7 +188,7 @@ def structure_callback( ros_cloud, args ):
     ball_points = ball_points[ball_points[:,2]>z_neg_lim,:]
     ball_points = ball_points[ball_points[:,2]<z_pos_lim,:]
     # Only count the points when sc capture enough (15+) points
-    if(ball_points.shape[0]<6):
+    if(ball_points.shape[0]<3):
         return
     ball_position = np.mean(ball_points, axis=0)
     # Save data into data structure in object
@@ -628,7 +628,7 @@ class SCSession ( object ):
                 # from base_link
                 (tf_trans,tf_rot) = tf_listener.lookupTransform(
                                       "/base_link",
-                                      "/zed2i_camera_center",
+                                      "/zed2i_left_camera_frame",
                                       rospy.Time(0))
                 print("translation ", tf_trans)
                 print("rotation ", tf_rot)
