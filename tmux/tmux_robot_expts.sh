@@ -27,7 +27,7 @@ send-keys 'roslaunch shield_perception zed_filter.launch'
 tmux select-pane -t 2
 # tmux send-keys 'export ROS_IP=10.68.0.102 ROS_MASTER_URI=http://10.68.0.1:11311' C-m
 tmux send-keys 'source ../../../devel/setup.bash' Enter \; \
- 	 send-keys 'rosrun shield_perception publish_tfs.py'
+ 	 send-keys 'rosrun shield_perception detect_ball.py'
 
 tmux select-pane -t 3
 # tmux send-keys 'export ROS_IP=10.68.0.102 ROS_MASTER_URI=http://10.68.0.1:11311' C-m
