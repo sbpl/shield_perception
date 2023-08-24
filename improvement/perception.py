@@ -90,14 +90,14 @@ def main() :
                 if radius < min_radius or radius > max_radius:
                     continue
 
-                # Draw the bounding box
+                # Draw the circle
                 cv2.circle(image_ocv, center, radius, (0, 255, 0), 2)
-                x, y, w, h = cv2.boundingRect(contour)
-                cv2.rectangle(image_ocv, (x, y), (x + w, y + h), (0, 0, 255), 2)
+                # x, y, w, h = cv2.boundingRect(contour)
+                # cv2.rectangle(image_ocv, (x, y), (x + w, y + h), (0, 0, 255), 2)
   
                 # Calculate centroid of the circle
-                centroid_x = int(x + w / 2)
-                centroid_y = int(y + h / 2)
+                centroid_x = int(x)
+                centroid_y = int(y)
                 
                 err, point_cloud_value = point_cloud.get_value(centroid_x, centroid_y)
                 
@@ -108,7 +108,7 @@ def main() :
                                     point_cloud_value[2] * point_cloud_value[2])
                 
 
-                if point_cloud_value[2] < 5.5:
+                if point_cloud_value[2] < 5:
                     count = count + 1
                     print (centroid_x,centroid_y,point_cloud_value[2],confidence_map.get_value(centroid_x, centroid_y))
             
