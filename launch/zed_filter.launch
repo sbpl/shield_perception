@@ -1,13 +1,14 @@
 <launch>
   <node pkg="nodelet" type="nodelet" name="pcl_manager" args="manager" output="screen" />
 
-  <node pkg="nodelet" type="nodelet" name="zed_filtered_z_only" args="load pcl/PassThrough pcl_manager" output="screen">
+  <!-- <node pkg="nodelet" type="nodelet" name="zed_filtered_z_only" args="load pcl/PassThrough pcl_manager" output="screen">
     <remap from="~input" to="/zed2i/zed_nodelet/point_cloud/cloud_registered" />
     <rosparam>
       filter_field_name: z
       filter_limit_min: -0.5
       filter_limit_max: 2.5
       filter_limit_negative: False
+      output_frame: base_link
     </rosparam>
   </node>
   <node pkg="nodelet" type="nodelet" name="zed_filtered_x_only" args="load pcl/PassThrough pcl_manager" output="screen">
@@ -17,6 +18,7 @@
       filter_limit_min: -0.5
       filter_limit_max: 2.5
       filter_limit_negative: False
+      output_frame: base_link
     </rosparam>
   </node>
   <node pkg="nodelet" type="nodelet" name="zed_filtered_y_only" args="load pcl/PassThrough pcl_manager" output="screen">
@@ -26,8 +28,9 @@
       filter_limit_min: -0.5
       filter_limit_max: 2.5
       filter_limit_negative: False
+      output_frame: base_link
     </rosparam>
-  </node>
+  </node> -->
 
   <!-- Run a zed_filtered filter to clean NaNs -->
   <!-- x-axis: depth, y-axis: horizon (width), z-axis: vertical (height)-->
@@ -35,27 +38,30 @@
     <remap from="~input" to="/zed2i/zed_nodelet/point_cloud/cloud_registered" />
     <rosparam>
       filter_field_name: x
-      filter_limit_min: 0.2
-      filter_limit_max: 2.5
+      filter_limit_min: 1.0
+      filter_limit_max: 3.5
       filter_limit_negative: False
+      output_frame: base_link
     </rosparam>
   </node>
   <node pkg="nodelet" type="nodelet" name="zed_filtered_y" args="load pcl/PassThrough pcl_manager" output="screen">
     <remap from="~input" to="/zed_filtered_x/output" />
     <rosparam>
       filter_field_name: y
-      filter_limit_min: -0.7
-      filter_limit_max: 1.2
+      filter_limit_min: -1
+      filter_limit_max: 1.5
       filter_limit_negative: False
+      output_frame: base_link
     </rosparam>
   </node>
   <node pkg="nodelet" type="nodelet" name="zed_filtered" args="load pcl/PassThrough pcl_manager" output="screen">
     <remap from="~input" to="/zed_filtered_y/output" />
     <rosparam>
       filter_field_name: z
-      filter_limit_min: -0.5
+      filter_limit_min: 0.0
       filter_limit_max: 2.5
       filter_limit_negative: False
+      output_frame: base_link
     </rosparam> -->
   </node>
 </launch>
