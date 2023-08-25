@@ -11,18 +11,20 @@ import sensor_msgs.point_cloud2 as pc2
 
 min_radius = 1  # Minimum radius of the ball
 max_radius = 100  # Maximum radius of the ball
+Baseline = 0.12 # Unit is meter
+focal_length = 500
 
 
-def callback(rgb_msg, depth_msg, pc_msg, confidence_msg):
+def callback(rgb_msg, disparity_msg, pc_msg, confidence_msg):
     bridge = CvBridge()
     rgb_image = bridge.imgmsg_to_cv2(rgb_msg, desired_encoding='bgr8')
-    depth_image = bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
+    disparity_image = bridge.imgmsg_to_cv2(disparity_msg, desired_encoding='passthrough')
     point_cloud = bridge.imgmsg_to_cv2(pc_msg, desired_encoding='passthrough')
     confidence_image = bridge.imgmsg_to_cv2(confidence_msg, desired_encoding='passthrough')
 
     # Convert ZED Mat objects to numpy arrays
-    depth_map_np = depth_image
     confidence_map_np = confidence_image
+    disparity_map_np = disparity_image
 
     hsv_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2HSV)
 
@@ -55,11 +57,15 @@ def callback(rgb_msg, depth_msg, pc_msg, confidence_msg):
         centroid_x = int(x)
         centroid_y = int(y)
 
-        # Extract depth and confidence values
-        depth = depth_map_np[centroid_x, centroid_y]
+        # Get confidence and depth values
         confidence = confidence_map_np[centroid_x, centroid_y]
+        
+        disparity = disparity_map_np[centroid_x, centroid_y]
+
+        depth = Baseline * focal_length / disparity
 
         if depth < 5 and confidence < 40:
+
             # Get the corresponding point cloud value at the centroid pixel
             point_cloud_value = point_cloud[centroid_x, centroid_y]
 
@@ -76,15 +82,15 @@ def callback(rgb_msg, depth_msg, pc_msg, confidence_msg):
 
 def main():
     rospy.init_node('zed_subscriber', anonymous=True)
-    pub = rospy.Publisher('/zed2i/filtered_point_cloud', PointCloud2, queue_size=10)
+    pub = rospy.Publisher('/zed/filtered_point_cloud', PointCloud2, queue_size=10)
 
     # Subscribe to the RGB, Depth, Point Cloud, and Confidence topics using message_filters
-    rgb_sub = message_filters.Subscriber('/zed2i/rgb/image_rect_color', Image)
-    depth_sub = message_filters.Subscriber('/zed2i/depth/depth_registered', Image)
-    point_cloud_sub = message_filters.Subscriber('/zed2i/point_cloud/cloud_registered', PointCloud2)
-    confidence_sub = message_filters.Subscriber('/zed2i/confidence/confidence_map', Image)
+    rgb_sub = message_filters.Subscriber('/zed/rgb/image_rect_color', Image)
+    disparity_sub = message_filters.Subscriber('/zed/disparity/disparity_image', Image)
+    point_cloud_sub = message_filters.Subscriber('/zed/point_cloud/cloud_registered', PointCloud2)
+    confidence_sub = message_filters.Subscriber('/zed/confidence/confidence_map', Image)
 
-    ts = message_filters.TimeSynchronizer([rgb_sub, depth_sub, point_cloud_sub, confidence_sub], 10)
+    ts = message_filters.TimeSynchronizer([rgb_sub, disparity_sub, point_cloud_sub, confidence_sub], 10)
     ts.registerCallback(callback)
 
     rospy.spin()
