@@ -15,7 +15,7 @@ max_radius = 100  # Maximum radius of the ball
 
 def callback(rgb_msg, depth_msg, pc_msg, confidence_msg):
     bridge = CvBridge()
-    rgb_image = bridge.imgmsg_to_cv2(rgb_msg, desired_encoding='bgr8')
+    rgb_image = bridge.imgmsg_to_cv2(rgb_msg, desired_encoding='passthrough')
     depth_image = bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
     point_cloud = bridge.imgmsg_to_cv2(pc_msg, desired_encoding='passthrough')
     confidence_image = bridge.imgmsg_to_cv2(confidence_msg, desired_encoding='passthrough')
@@ -24,7 +24,7 @@ def callback(rgb_msg, depth_msg, pc_msg, confidence_msg):
     depth_map_np = depth_image
     confidence_map_np = confidence_image
 
-    hsv_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2HSV)
+    hsv_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2HSV)
 
     # Define the adjusted range for bright orange color in HSV
     lower_bound = np.array([8, 150, 150])
@@ -71,7 +71,7 @@ def callback(rgb_msg, depth_msg, pc_msg, confidence_msg):
         filtered_pc = pc2.create_cloud_xyz32(pc_msg.header, filtered_points)
         pub.publish(filtered_pc)
 
-    cv2.imshow('RGB Image', rgb_image)
+    cv2.imshow('RGB Image', hsv_image)
     cv2.waitKey(1)
 
 def main():
