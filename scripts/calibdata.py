@@ -266,10 +266,10 @@ class Calibration:
         print('Camera base pose in base frame (rpy, xyz): ', rot_base_to_cambase, tran_base_to_cambase)
 
 def main():
-    calibrator = Calibration('Data/')
+    calibrator = Calibration('camera_calibration/calib_data/')
     calibrator.calibrate()
     # calibrator.statistic()
-    # calibrator.test()
+    calibrator.test()
     calibrator.base_to_cambase()
 
 
