@@ -51,8 +51,8 @@ if err != sl.ERROR_CODE.SUCCESS:
     exit(-1)
 
 # output save dir
-num_samples = 0
-save_dir = '/home/shield/code/parallel_search/scripts/camera_calibration/calib_data'
+num_samples = 100
+save_dir = '/home/shield/code/shield_ws/src/shield_perception/scripts/camera_calibration/calib_data'
 
 # planner params
 nq = 6

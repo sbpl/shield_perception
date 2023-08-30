@@ -68,32 +68,39 @@ def callback(rgb_msg, depth_msg, pc_msg, confidence_msg, pub):
         cv2.circle(mask, center, radius, 255, -1)
         where = np.where(mask == 255)
         depth_points = depth_map_np[where[0], where[1]]
-        depth = np.mean(depth_points)
-
+        # depth = np.mean(depth_points)
+        # pdb.set_trace()
         # confidence = confidence_map_np[centroid_y,centroid_x]
         confidence = confidence_map_np[where[0],where[1]]
-        confidence = np.mean(confidence, axis=0)
+        # confidence = np.mean(confidence, axis=0)
+        for ind,(d, c) in enumerate(zip(depth_points, confidence)):
+            if d < 4 and c < 30:
+                # Get the corresponding point cloud value at the centroid pixel
+                # point_cloud_value = point_cloud[centroid_y,centroid_x]
+                point_cloud_poi = point_cloud[where[0][ind], where[1][ind]] 
+                # pdb.set_trace()
+                # poi = [[p[0], p[1], p[2]] for p in point_cloud_poi]
+                # poi = np.array(point_cloud_poi[0:3])
+                # pdb.set_trace()
 
-        if depth < 4 and confidence < 80:
-            # Get the corresponding point cloud value at the centroid pixel
-            # point_cloud_value = point_cloud[centroid_y,centroid_x]
-            point_cloud_poi = point_cloud[where[0], where[1]] 
-            poi = [[p[0], p[1], p[2]] for p in point_cloud_poi]
-            poi = np.array(poi)
-            # pdb.set_trace()
+                # point_cloud_value = np.mean(poi, axis=0)
 
-            point_cloud_value = np.mean(poi, axis=0)
-
-            # Append the filtered point with X, Y, Z coordinates
-            filtered_points.append([point_cloud_value[0], point_cloud_value[1], point_cloud_value[2]])
-            filtered_points_confident.append(confidence)
+                # Append the filtered point with X, Y, Z coordinates
+                # filtered_points.append([point_cloud_value[0], point_cloud_value[1], point_cloud_value[2]])
+                # filtered_points.append([poi[0], poi[1], poi[2]])
+                filtered_points.append([point_cloud_poi[0], point_cloud_poi[1], point_cloud_poi[2]])
+                filtered_points_confident.append(c)
 
     # Publish the filtered point cloud
     if filtered_points:
         filtered_pc = pc2.create_cloud_xyz32(pc_msg.header, filtered_points)
-        for ind, pc in enumerate(filtered_points):
-            print("Publishing point_cloud_filtered {}: X:{:.2f}    Y:{:.2f}    Z:{:.2f}".format(ind, pc[0],pc[1],pc[2]))
-            print("with confident:{:.2f}".format(filtered_points_confident[ind]))
+        # for ind, pc in enumerate(filtered_points):
+        #     print("Publishing point_cloud_filtered {}: X:{:.2f}    Y:{:.2f}    Z:{:.2f}".format(ind, pc[0],pc[1],pc[2]))
+        #     print("with confident:{:.2f}".format(filtered_points_confident[ind]))
+        filtered_points_np = np.array(filtered_points)
+        pc_mean = np.mean(filtered_points_np, axis=0)
+        print("Publishing point_cloud_filtered with mean: X:{:.2f}    Y:{:.2f}    Z:{:.2f}".format(pc_mean[0],pc_mean[1],pc_mean[2]))
+        print("with mean confident:{:.2f}".format(np.mean(np.array(filtered_points_confident))))
         pub.publish(filtered_pc)
 
     # cv2.imshow('RGB Image', rgb_image)

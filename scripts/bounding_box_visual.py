@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-
-
 import rospy
 from visualization_msgs.msg import Marker
+
+# Method marcro: 0 = bounding box, 1 = color filtering
+METHOD_ID=0
 
 def visiualizedBox():
     rospy.init_node('shield_perception_bound')
@@ -47,7 +48,7 @@ def visiualizedBox():
 
     while not rospy.is_shutdown():
         marker_pub.publish(marker)
-        rospy.rostime.wallsleep(1.0)
+        rospy.rostime.wallsleep(10.0)
 
 if __name__ == '__main__':
     visiualizedBox()

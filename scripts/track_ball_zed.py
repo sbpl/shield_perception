@@ -12,14 +12,14 @@ from shield_planner_msgs.srv import TestbedProjectile
 from shield_planner_msgs.msg import Projectile
 import std_msgs.msg
 import rospkg
-from visualization_msgs.msg import MarkerArray
+from visualization_msgs.msg import MarkerArray, Marker
 import tf
 
 from dynamic_reconfigure.server import Server
 # from shield_perception.cfg import calibrateConfig
 
 # Method marcro: 0 = bounding box, 1 = color filtering
-METHOD_ID=1
+METHOD_ID=0
 
 ##########################################################################
 #############################Function#####################################
@@ -190,7 +190,7 @@ def structure_callback1( ros_cloud, args ):
     ball_points = ball_points[ball_points[:,2]>z_neg_lim,:]
     ball_points = ball_points[ball_points[:,2]<z_pos_lim,:]
     # Only count the points when sc capture enough (15+) points
-    if(ball_points.shape[0]<3):
+    if(ball_points.shape[0]<5):
         return
     ball_position = np.mean(ball_points, axis=0)
     # Save data into data structure in object
@@ -333,6 +333,29 @@ class TrackBall( object ) :
         # self.ki_sess = KISession()
         self.sc_sess = SCSession()
 
+    # Function to publish points used to estimate the projectile
+    def visualize_projectile_points( self, bpes, pmmsg ):
+        markers = MarkerArray()
+        for ind, es in enumerate(bpes):
+            marker = Marker()
+            marker.header.frame_id = "odom_combined"
+            marker.type = marker.SPHERE
+            marker.id = ind
+            marker.action = marker.ADD
+            marker.scale.x = 0.2
+            marker.scale.y = 0.2
+            marker.scale.z = 0.2
+            marker.color.a = 1.0
+            marker.color.r = 1.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+            marker.pose.orientation.w = 1.0
+            marker.pose.position.x = es[0]
+            marker.pose.position.y = es[1] 
+            marker.pose.position.z = es[2]
+            markers.markers.append(marker)
+        pmmsg.publish(markers)
+
     # Helper function to compute projectile
     def compute_projectile_2(
             self, bpes, btes, pmsg, pmmsg,
@@ -420,7 +443,13 @@ class TrackBall( object ) :
         # Time elapsed
         t2 = rospy.Time.now()
         print("Diff", (t2-t1).to_sec()*1000, t2)
+
+        # Visualization - Publish the points used to calculate probalo
+        self.visualize_projectile_points(bpes, pmmsg)
+
         return projectile_msg
+
+    
 
     # Helper function to extrapolate projectile to time
     def extrapolate_projectile_to_time(
@@ -556,7 +585,7 @@ class TrackBall( object ) :
         #                  [np.sin(self.roll_offset),np.cos(self.roll_offset),0,0],
         #                  [0,0,1,0],
         #                  [0,0,0,1]])
-        rate = rospy.Rate(600) # 10hz
+        rate = rospy.Rate(240) # 10hz
 
         # Start of the loop with loop control variable process_sc
         process_sc = True
@@ -664,9 +693,9 @@ class SCSession ( object ):
         self.projectile_msg_pub = rospy.Publisher("projectile", 
                                                   Projectile,
                                                   queue_size=1)
-        self.projectile_marker_pub = rospy.Publisher("projectile_vis",
+        self.projectile_marker_pub = rospy.Publisher("/projectile_vis",
                                                      MarkerArray,
-                                                     queue_size=10)
+                                                     queue_size=3)
         # Data
         self.A_FP_SC = None
         self.first_sc_timestamp = None
