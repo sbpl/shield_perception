@@ -16,6 +16,8 @@ from visualization_msgs.msg import MarkerArray, Marker
 import tf
 
 from dynamic_reconfigure.server import Server
+
+import pdb
 # from shield_perception.cfg import calibrateConfig
 
 # Method marcro: 0 = bounding box, 1 = color filtering
@@ -30,8 +32,6 @@ def xyzrgb_array_to_pointcloud2(points, colors, stamp=None, frame_id=None, seq=N
     of points.
     '''
     msg = PointCloud2()
-    assert(points.shape == colors.shape)
-    buf = []
     # Process args
     if stamp:
         msg.header.stamp = stamp
@@ -39,12 +39,9 @@ def xyzrgb_array_to_pointcloud2(points, colors, stamp=None, frame_id=None, seq=N
         msg.header.frame_id = frame_id
     if seq:
         msg.header.seq = seq
-    if len(points.shape) == 3:
-        msg.height = points.shape[1]
-        msg.width = points.shape[0]
     else:
-        N = len(points)
-        xyzrgb = np.array(np.hstack([points, colors]), dtype=np.float64)
+        N = points.shape[0]
+        xyzrgb = np.array(np.hstack([points, colors]), dtype=np.float32)
         msg.height = 1
         msg.width = N
     # Setting up message's fields and opitions
@@ -52,15 +49,13 @@ def xyzrgb_array_to_pointcloud2(points, colors, stamp=None, frame_id=None, seq=N
         PointField('x', 0, PointField.FLOAT32, 1),
         PointField('y', 4, PointField.FLOAT32, 1),
         PointField('z', 8, PointField.FLOAT32, 1),
-        PointField('r', 12, PointField.FLOAT32, 1),
-        PointField('g', 16, PointField.FLOAT32, 1),
-        PointField('b', 20, PointField.FLOAT32, 1)
+        PointField('rgb', 12, PointField.FLOAT32, 1)
     ]
     msg.is_bigendian = False
-    msg.point_step = 24
+    msg.point_step = 16
     msg.row_step = msg.point_step * N
     msg.is_dense = True
-    msg.data = xyzrgb.tostring()
+    msg.data = xyzrgb.tobytes()
     return msg
 
 # Helper function for ros to point cloud list
@@ -170,36 +165,41 @@ def structure_callback1( ros_cloud, args ):
     sc_obj = args[1]
     # ki_obj = args[2]
     # Getting spatial limit from track ball object
-    y_pos_lim = track_obj.y_pos_lim
-    y_neg_lim = track_obj.y_neg_lim
-    z_pos_lim = track_obj.z_pos_lim
-    z_neg_lim = track_obj.z_neg_lim
+    # y_pos_lim = track_obj.y_pos_lim
+    # y_neg_lim = track_obj.y_neg_lim
+    # z_pos_lim = track_obj.z_pos_lim
+    # z_neg_lim = track_obj.z_neg_lim
     # If projectile already computed, just return
     if sc_obj.projectile_computed:
         return
     # Converting point cloud to python vectors
     point_list = []
     pc = rnp.numpify(ros_cloud)
-    points = np.zeros((pc.shape[0],3))
+    # pc = rnp.point_cloud2.split_rgb_field(pc)
+    points = np.zeros((pc.shape[0],3),dtype=np.float32)
+    points_rgb = np.zeros((pc.shape[0],1),dtype=np.float32)
     points[:,0] = pc['x']
     points[:,1] = pc['y']
     points[:,2] = pc['z']
+    points_rgb = pc['rgb']
+    # pdb.set_trace()
     # Filter out some points that exceed spatial limit
-    ball_points = points[points[:,1]>y_neg_lim,:]
-    ball_points = ball_points[ball_points[:,1]<y_pos_lim,:]
-    ball_points = ball_points[ball_points[:,2]>z_neg_lim,:]
-    ball_points = ball_points[ball_points[:,2]<z_pos_lim,:]
-    # Only count the points when sc capture enough (15+) points
-    if(ball_points.shape[0]<5):
+    # ball_points = points[points[:,1]>y_neg_lim,:]
+    # ball_points = ball_points[ball_points[:,1]<y_pos_lim,:]
+    # ball_points = ball_points[ball_points[:,2]>z_neg_lim,:]
+    # ball_points = ball_points[ball_points[:,2]<z_pos_lim,:]
+    # Only count the points when sc capture enough (5+) points
+    if(points.shape[0]<5):
         return
-    ball_position = np.mean(ball_points, axis=0)
+    ball_position = np.mean(points, axis=0)
     # Save data into data structure in object
     sc_obj.ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
     sc_obj.ball_position_estimates_base.append(ball_position)
-    sc_obj.ball_pointcloud.append(ball_points)
+    sc_obj.ball_pointcloud.append(points)
+    sc_obj.ball_pointcloud_rgb.append(points_rgb)
     # Print out data for debugging purpose
     print("Structure Core Ball points",
-          ball_points.shape[0], ball_position,
+          points.shape[0], ball_position,
           ros_cloud.header.stamp.to_sec())
     # If collected more than 5 points, mark projectile as computed
     # for structure core
@@ -214,8 +214,8 @@ def structure_callback1( ros_cloud, args ):
                    ros_cloud.fields,
                    ros_cloud.point_step )
         filtered_msg = xyzrgb_array_to_pointcloud2(
-                     ball_points,
-                     np.zeros(ball_points.shape, dtype=np.float64),
+                     points,
+                     np.zeros(points.shape, dtype=np.float64),
                      ros_cloud.header.stamp,
                      "launcher_camera",
                      ros_cloud.header.seq )
@@ -243,8 +243,6 @@ def structure_callback2( ros_cloud, args ):
     points[:,0] = pc['x']
     points[:,1] = pc['y']
     points[:,2] = pc['z']
-    import pdb
-    # pdb.set_trace()
     # Filter out some points that exceed spatial limit
     # ball_points = points[points[:,1]>y_neg_lim,:]
     # ball_points = ball_points[ball_points[:,1]<y_pos_lim,:]
@@ -296,7 +294,7 @@ class TrackBall( object ) :
     '''
     def __init__( self ):
         # Config
-        self.g_debug = True
+        self.g_debug = False
 
         # Spatial
         self.x_cen = -0.4515569
@@ -345,7 +343,7 @@ class TrackBall( object ) :
             marker.scale.x = 0.2
             marker.scale.y = 0.2
             marker.scale.z = 0.2
-            marker.color.a = 1.0
+            marker.color.a = 0.3
             marker.color.r = 1.0
             marker.color.g = 1.0
             marker.color.b = 0.0
@@ -355,6 +353,23 @@ class TrackBall( object ) :
             marker.pose.position.z = es[2]
             markers.markers.append(marker)
         pmmsg.publish(markers)
+
+    # Function to visualized pc2 that are collected
+    def visualize_collected_pc( self, pc_list, pc_rgb_list, pub ):
+        pc_all = np.zeros((0,3))
+        pc_rgb_all = np.zeros((0,1))
+        for i in range(len(pc_list)):
+            pc_all = np.vstack((pc_all, np.array(pc_list[i])))            
+            # pdb.set_trace()
+            pc_rgb_all = np.vstack((pc_rgb_all, np.array(pc_rgb_list[i]).reshape(-1,1)))
+
+        # Publishing
+        filtered_msg = xyzrgb_array_to_pointcloud2(
+                    pc_all,
+                    pc_rgb_all,
+                    rospy.Time.now(),
+                    "odom_combined")
+        pub.publish(filtered_msg)
 
     # Helper function to compute projectile
     def compute_projectile_2(
@@ -443,9 +458,6 @@ class TrackBall( object ) :
         # Time elapsed
         t2 = rospy.Time.now()
         print("Diff", (t2-t1).to_sec()*1000, t2)
-
-        # Visualization - Publish the points used to calculate probalo
-        self.visualize_projectile_points(bpes, pmmsg)
 
         return projectile_msg
 
@@ -604,6 +616,16 @@ class TrackBall( object ) :
                 print("Structure CORE TimeSTAMPS",
                       self.sc_sess.ball_time_estimates, "time diff",
                       (t2-t1).to_sec()*1000, t1.to_sec())
+                
+                # Visualization - Publish the points used to calculate probalo
+                self.visualize_projectile_points(
+                    self.sc_sess.ball_position_estimates,
+                    self.sc_sess.projectile_marker_pub)
+                self.visualize_collected_pc(
+                    self.sc_sess.ball_pointcloud,
+                    self.sc_sess.ball_pointcloud_rgb,
+                    self.sc_sess.publisher)
+
                 break
 
             # When kinect need replanning
@@ -703,6 +725,7 @@ class SCSession ( object ):
         self.ball_position_estimates = []
         self.ball_time_estimates = []
         self.ball_pointcloud = []
+        self.ball_pointcloud_rgb = []
         # Control
         self.projectile_computed = False
 

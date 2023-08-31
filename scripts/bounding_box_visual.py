@@ -1,9 +1,50 @@
 #!/usr/bin/env python
 import rospy
 from visualization_msgs.msg import Marker
+from sensor_msgs.msg import PointCloud2
+import roslib
+roslib.load_manifest('laser_assembler')
+from laser_assembler.srv import *
 
 # Method marcro: 0 = bounding box, 1 = color filtering
-METHOD_ID=0
+METHOD_ID=1
+
+def callback(pc):
+    # pc_save = args[1]
+    # if pc.header.stamp.secs + 1 > rospy.get_time():
+    #     pc_save = PointCloud2()
+    #     pc_save.header.frame_id = "odom_combined"
+    # pc_save.header.stamp = rospy.Time.now()
+    # pc_save.data.
+    try:
+        assemble_scans = rospy.ServiceProxy('assemble_scans2', AssembleScans2)
+        resp = assemble_scans(rospy.Time(2,0), rospy.get_rostime())
+        # print("Got cloud with %u points" % len(resp.cloud.points))
+        pc_pub = rospy.Publisher("/pc_vis", PointCloud2, queue_size=1)
+        pc_pub.publish(resp.cloud)
+    except rospy.ServiceException as e:
+        print("Servie call failed: %s"%e)
+
+    
+
+def listener():
+    # Publish the pc batch in track_ball instead
+    rospy.init_node('filtered_pc_listener')
+    # rospy.wait_for_service('assemble_scans2')
+    # print("Got Service!")
+    # # rospy.Subscriber("/zed2i/filtered_point_cloud", PointCloud2, callback)
+    # while not rospy.is_shutdown():
+    #     try:
+    #         assemble_scans = rospy.ServiceProxy('assemble_scans2', AssembleScans2)
+    #         resp = assemble_scans(rospy.Time(2,0), rospy.get_rostime())
+    #         # print("Got cloud with %u points" % len(resp.cloud.points))
+    #         pc_pub = rospy.Publisher("/pc_vis", PointCloud2, queue_size=1)
+    #         pc_pub.publish(resp.cloud)
+    #     except rospy.ServiceException as e:
+    #         print("Servie call failed: %s"%e)
+        # print(rospy.Time.now())
+        # rospy.rostime.wallsleep(2.0)
+
 
 def visiualizedBox():
     rospy.init_node('shield_perception_bound')
@@ -48,7 +89,10 @@ def visiualizedBox():
 
     while not rospy.is_shutdown():
         marker_pub.publish(marker)
-        rospy.rostime.wallsleep(10.0)
+        rospy.rostime.wallsleep(1.0)
 
 if __name__ == '__main__':
-    visiualizedBox()
+    if METHOD_ID == 0:
+        visiualizedBox()
+    elif METHOD_ID == 1:
+        listener()

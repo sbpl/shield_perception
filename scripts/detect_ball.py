@@ -74,7 +74,7 @@ def callback(rgb_msg, depth_msg, pc_msg, confidence_msg, pub):
         confidence = confidence_map_np[where[0],where[1]]
         # confidence = np.mean(confidence, axis=0)
         for ind,(d, c) in enumerate(zip(depth_points, confidence)):
-            if d < 4 and c < 30:
+            if d < 6 and c < 10:
                 # Get the corresponding point cloud value at the centroid pixel
                 # point_cloud_value = point_cloud[centroid_y,centroid_x]
                 point_cloud_poi = point_cloud[where[0][ind], where[1][ind]] 

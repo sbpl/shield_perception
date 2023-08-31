@@ -64,4 +64,18 @@
       output_frame: base_link
     </rosparam>
   </node>
+
+  <!-- <node type="point_cloud2_assembler" pkg="laser_assembler" name="assemble_scans2">
+    <remap from="cloud" to="/zed2i/filtered_point_cloud"/>
+    <param name="max_clouds" type="int" value="5" />
+    <param name="fixed_frame" type="string" value="base_link" />
+    <param name="tf_cache_time_secs" type="double" value="2.0" /> -->
+  <!-- </node> -->
+
+  <!-- <node type="point_cloud2_assembler" pkg="laser_assembler" name="assemble_scans2">
+    <remap from="cloud" to="/zed_filtered/output"/>
+    <param name="max_clouds" type="int" value="5" />
+    <param name="fixed_frame" type="string" value="base_link" />
+    <param name="tf_cache_time_secs" type="double" value="2.0" />
+  </node> -->
 </launch>
