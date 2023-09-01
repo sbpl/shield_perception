@@ -20,8 +20,11 @@ from dynamic_reconfigure.server import Server
 import pdb
 # from shield_perception.cfg import calibrateConfig
 
-# Method marcro: 0 = bounding box, 1 = color filtering
-METHOD_ID=0
+# Macro: 
+# METHOD_ID: 0 = bounding box, 1 = color filtering
+# NUM_FRAME: number of frames required to start estimation
+METHOD_ID=1
+NUM_FRAME=3
 
 ##########################################################################
 #############################Function#####################################
@@ -65,102 +68,9 @@ def ros_to_pcl(ros_cloud):
         points_list.append([data[0], data[1], data[2]])
     return np.array(points_list)
 
-# Kinect callback function
-def kinect_callback( ros_cloud, args ):
-
-    track_obj = args[0]
-    sc_obj = args[1]
-    ki_obj = args[2]
-
-    # Return directly if sc have not computed yet or ki is done
-    if ki_obj.k_projectile_computed or not sc_obj.projectile_computed:
-        return
-
-    # Translate ros's data to pointcloud
-    ball_points = ros_to_pcl( ros_cloud )
-    # Filter out some input
-    if len( ki_obj.k_ball_position_estimates ) == 0 and\
-            ball_points.shape[0] < 1:
-        return
-    elif ball_points.shape[0] < 50:
-        return
-
-    # Process data collected
-    ball_position = np.mean(ball_points, axis=0)
-    hom_ball_position = np.ones((4,1))
-    hom_ball_position[0,0] = ball_position[0]
-    hom_ball_position[2,0] = ball_position[2]
-    hom_ball_position[1,0] = ball_position[1]
-    # Caculate ball position with repect to PC2
-    P_FP_B = np.dot( ki_obj.A_FP_KI, hom_ball_position )
-    ball_position_in_PR2 = P_FP_B[0:3,0]/P_FP_B[3,0]
-    print("kinect Ball points",
-          ball_points.shape[0],
-          ball_position_in_PR2,
-          ros_cloud.header.stamp.to_sec())
-
-    # Update data structure only if structure core is done
-    if sc_obj.projectile_computed: 
-        ki_obj.k_ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
-        ki_obj.k_ball_position_estimates.append(ball_position_in_PR2)
-    ki_obj.k_ball_pointcloud.append(ball_points)
-
-    # Enable replanning when there's no enough data points
-    if len(ki_obj.k_ball_position_estimates) >= 1 and not\
-            ki_obj.k_projectile_computed:
-        ki_obj.k_kinect_replanning_available = True
-
-    # Save data to pickle files when enough data is obtained
-    if len(ki_obj.k_ball_position_estimates) >= 3 and not\
-            ki_obj.k_projectile_computed:
-        print("==============kinect==========================")
-        if sc_obj.projectile_computed:
-            save_dict = {}
-            save_dict['sc'] = ( sc_obj.ball_position_estimates_base,
-                                sc_obj.ball_time_estimates )
-            save_dict['sc_points'] = sc_obj.ball_pointcloud
-            save_dict['ki'] = ( ki_obj.k_ball_position_estimates,
-                                ki_obj.k_ball_time_estimates )
-            save_dict['ki_points'] = ki_obj.k_ball_pointcloud
-            save_dict['TF'] = ki_obj.A_FP_KI
-            rospack = rospkg.RosPack()
-            pkg_dir = rospack.get_path('shield_perception')
-            filename = pkg_dir + "/data_dump/calib_data_runs/" +\
-                       time.strftime("%Y%m%d-%H%M%S") + '.pickle'
-
-            # Create pickle file in specified path
-            with open(filename, 'wb') as handle:
-                pickle.dump(save_dict, handle,
-                            protocol=pickle.HIGHEST_PROTOCOL)
-                print("Saving raw files to ", filename)
-            for estimates in track_obj.projectile_estimates:
-                # print(estimates, "Estimates")
-                print(track_obj.compute_accuracy(
-                      estimates[0],estimates[1],
-                      estimates[2],estimates[3],
-                      estimates[4],estimates[5])*100.0,
-                      "Errors (cm)")
-                print("Time Diff (s) = ",
-                      ki_obj.k_ball_time_estimates[0]-\
-                      sc_obj.ball_time_estimates[-1])
-        ki_obj.k_projectile_computed = True
-
-    # if G_DEBUG: debugging info
-    dtype_list =\
-        rnp.point_cloud2.fields_to_dtype(ros_cloud.fields,
-                                         ros_cloud.point_step)
-    filtered_msg =\
-        xyzrgb_array_to_pointcloud2(ball_points,
-                                    np.zeros(ball_points.shape,
-                                             dtype=np.float64),
-                                    ros_cloud.header.stamp,
-                                    ros_cloud.header.frame_id,
-                                    ros_cloud.header.seq)
-    # Pulish
-    ki_obj.k_publisher.publish(filtered_msg)
 
 # Call back function for structure core
-def structure_callback1( ros_cloud, args ):
+def structure_callback( ros_cloud, args ):
     track_obj = args[0]
     sc_obj = args[1]
     # ki_obj = args[2]
@@ -181,7 +91,8 @@ def structure_callback1( ros_cloud, args ):
     points[:,0] = pc['x']
     points[:,1] = pc['y']
     points[:,2] = pc['z']
-    points_rgb = pc['rgb']
+    if 'rgb' in pc.dtype.fields:
+        points_rgb = pc['rgb']
     # pdb.set_trace()
     # Filter out some points that exceed spatial limit
     # ball_points = points[points[:,1]>y_neg_lim,:]
@@ -203,7 +114,7 @@ def structure_callback1( ros_cloud, args ):
           ros_cloud.header.stamp.to_sec())
     # If collected more than 5 points, mark projectile as computed
     # for structure core
-    if len(sc_obj.ball_position_estimates_base) >= 3 and not\
+    if len(sc_obj.ball_position_estimates_base) >= NUM_FRAME and not\
             sc_obj.projectile_computed:
         print("=============STRUCTURE CORE===========================",
               rospy.Time.now().to_sec())
@@ -224,68 +135,6 @@ def structure_callback1( ros_cloud, args ):
     # t3 = rospy.Time.now().to_sec()
     # print(t3-t1,t2-t1, "loop time")
 
-def structure_callback2( ros_cloud, args ):
-    track_obj = args[0]
-    sc_obj = args[1]
-    # ki_obj = args[2]
-    # Getting spatial limit from track ball object
-    # y_pos_lim = track_obj.y_pos_lim
-    # y_neg_lim = track_obj.y_neg_lim
-    # z_pos_lim = track_obj.z_pos_lim
-    # z_neg_lim = track_obj.z_neg_lim
-    # If projectile already computed, just return
-    if sc_obj.projectile_computed:
-        return
-    # Converting point cloud to python vectors
-    point_list = []
-    pc = rnp.numpify(ros_cloud)
-    points = np.zeros((pc.shape[0],3))
-    points[:,0] = pc['x']
-    points[:,1] = pc['y']
-    points[:,2] = pc['z']
-    # Filter out some points that exceed spatial limit
-    # ball_points = points[points[:,1]>y_neg_lim,:]
-    # ball_points = ball_points[ball_points[:,1]<y_pos_lim,:]
-    # ball_points = ball_points[ball_points[:,2]>z_neg_lim,:]
-    # ball_points = ball_points[ball_points[:,2]<z_pos_lim,:]
-    # Only count the points when sc capture enough (15+) points 
-    # Not applicable, only one point is provided here
-    # if(ball_points.shape[0]<3):
-    #     return
-    ball_points = points
-    ball_position = np.mean(ball_points, axis=0)
-    # Save data into data structure in object
-    sc_obj.ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
-    sc_obj.ball_position_estimates_base.append(ball_position)
-    sc_obj.ball_pointcloud.append(ball_points)
-    # Print out data for debugging purpose
-    print("Structure Core Ball points",
-        ball_points.shape[0], ball_position,
-        ros_cloud.header.stamp.to_sec())
-    # If collected more than 5 points, mark projectile as computed
-    # for structure core
-    if len(sc_obj.ball_position_estimates_base) >= 3 and not\
-            sc_obj.projectile_computed:
-        print("=============STRUCTURE CORE===========================",
-            rospy.Time.now().to_sec())
-        sc_obj.projectile_computed = True
-    # If debug mode is set, publish data collected to filterd_msg
-    if track_obj.g_debug:
-        dtype_list = rnp.point_cloud2.fields_to_dtype(
-                ros_cloud.fields,
-                ros_cloud.point_step )
-        filtered_msg = xyzrgb_array_to_pointcloud2(
-                    ball_points,
-                    np.zeros(ball_points.shape, dtype=np.float64),
-                    ros_cloud.header.stamp,
-                    "launcher_camera",
-                    ros_cloud.header.seq )
-        sc_obj.publisher.publish(filtered_msg)
-    # Timer for loop time
-    # t3 = rospy.Time.now().to_sec()
-    # print(t3-t1,t2-t1, "loop time")
-
-
 ##########################################################################
 #############################Classes######################################
 class TrackBall( object ) :
@@ -297,23 +146,23 @@ class TrackBall( object ) :
         self.g_debug = False
 
         # Spatial
-        self.x_cen = -0.4515569
-        self.x_width = 0.768414*0.8
-        self.y_cen = -0.0709
-        self.y_width = 1.2218*0.97
-        self.z_pos_lim = 3.
-        self.z_neg_lim = 0.01
-        self.vel_scale = 1.0 # Not used 
+        # self.x_cen = -0.4515569
+        # self.x_width = 0.768414*0.8
+        # self.y_cen = -0.0709
+        # self.y_width = 1.2218*0.97
+        # self.z_pos_lim = 3.
+        # self.z_neg_lim = 0.01
+        # self.vel_scale = 1.0 # Not used 
         self.z_offset = 0.0
         self.x_offset = 0.0
         self.y_offset = 0.0
         self.roll_offset = 0.0
         self.pitch_offset = 0.0
         self.yaw_offset = 0.0
-        self.x_pos_lim = self.x_cen + self.x_width/2.0
-        self.x_neg_lim = self.x_cen - self.x_width/2.0
-        self.y_pos_lim = self.y_cen + self.y_width/2.0
-        self.y_neg_lim = self.y_cen - self.y_width/2.0
+        # self.x_pos_lim = self.x_cen + self.x_width/2.0
+        # self.x_neg_lim = self.x_cen - self.x_width/2.0
+        # self.y_pos_lim = self.y_cen + self.y_width/2.0
+        # self.y_neg_lim = self.y_cen - self.y_width/2.0
         self.res_yaw_A = np.eye(4)
         self.res_pitch_A = np.eye(4)
         self.res_roll_A = np.eye(4)
@@ -555,13 +404,15 @@ class TrackBall( object ) :
         if METHOD_ID == 0:
             ## Using bounding box
             rospy.Subscriber("/zed_filtered/output", PointCloud2,
-                            structure_callback1,
-                            callback_args=(self,self.sc_sess))
+                            structure_callback,
+                            callback_args=(self,self.sc_sess),
+                            queue_size=10)
         elif METHOD_ID == 1:
             ## Using Color filtering
             rospy.Subscriber("/zed2i/filtered_point_cloud", PointCloud2,
-                            structure_callback2,
-                            callback_args=(self,self.sc_sess))
+                            structure_callback,
+                            callback_args=(self,self.sc_sess),
+                            queue_size=10)
 
         # Load pre-save params files
         # params = [0.404571, 0.13428446, 0.35198332,
@@ -646,63 +497,6 @@ class TrackBall( object ) :
 ##############################DONE WORKING#################################
 ###########################################################################
 
-class KISession ( object ):
-    '''
-    Session for kinect cam to capture the projectile
-    '''
-    def __init__ ( self ):
-        # ROS component
-        self.k_publisher = rospy.Publisher('/kinect/filtered_points',
-                                          PointCloud2,
-                                          queue_size = 1)
-        self.k_projectile_marker_pub = rospy.Publisher("kinect_projectile_vis",
-                                                       MarkerArray,
-                                                       queue_size=10)
-        # Data
-        self.A_FP_KI = None
-        self.k_ball_position_estimates = []
-        self.k_ball_time_estimates = []
-        self.k_ball_pointcloud = []
-        # Control
-        self.k_projectile_computed = False
-        self.k_enable_replanning = True
-        self.k_kinect_replanning_available = False
-
-    def ki_find_FP( self ):
-        tf_found = False
-        rate = rospy.Rate(10.0)
-        k_tf_trans = None
-        k_tf_rot = None
-        tf_listener = tf.TransformListener()
-        # Find tf (transform) listener
-        while not tf_found:
-            try:
-                # Look for trans and rot for camera_depth_optical_frame
-                # from base_footprint
-                (k_tf_trans,k_tf_rot) = tf_listener.lookupTransform(
-                                      "base_footprint",
-                                      "/camera_depth_optical_frame",
-                                      rospy.Time(0))
-                print("translation ", k_tf_trans)
-                print("rotation ", k_tf_rot)
-                tf_found = True
-            except Exception as e:
-                print("TF not found", e)
-            rate.sleep()
-        print("Found TF")
-
-        # Previously found tf examples
-        # k_tf_trans = [-0.15783123802738946, 0.01273613573344717,
-        #               1.4690869133055597]
-        # k_tf_rot = [-0.4749945606732899, 0.5031187344211056,
-        #             -0.5249774084103889, 0.4956313418903257]
-
-        # Multiplying trans and rot to get relative to base_footprint
-        trans_mat = tf.transformations.translation_matrix(k_tf_trans)
-        rot_mat = tf.transformations.quaternion_matrix(k_tf_rot)
-        self.A_FP_KI = np.dot(trans_mat, rot_mat)
-
-
 class SCSession ( object ):
     '''
     Session for structure core to capture the projectile
@@ -726,6 +520,7 @@ class SCSession ( object ):
         self.ball_time_estimates = []
         self.ball_pointcloud = []
         self.ball_pointcloud_rgb = []
+        self.order = []     # Indices of least errors poses, will be a np array
         # Control
         self.projectile_computed = False
 
@@ -780,18 +575,18 @@ class SCSession ( object ):
         self.ball_time_estimates_filtered = []
         self.errors = []
         # Calculate Errors
-        for i in range(3):
+        for i in range(NUM_FRAME):
             error = np.max(
                   np.linalg.norm(
-                  np.array(self.ball_pointcloud[i])
+                  self.ball_pointcloud[i]
                   -self.ball_position_estimates_base[i].reshape((1,-1)),
                   axis=1))
             self.errors.append(error)
         # Picked three with least error
-        order = np.argsort(self.errors)
-        print("======== Order======== ", order)
-        for i in range(5):
-            if i in order[0:3]:
+        self.order = np.argsort(self.errors)
+        print("======== Order======== ", self.order)
+        for i in range(NUM_FRAME):
+            if i in self.order[0:3]:
                 self.ball_position_estimates_base_filtered.append(
                     self.ball_position_estimates_base[i])
                 self.ball_time_estimates_filtered.append(

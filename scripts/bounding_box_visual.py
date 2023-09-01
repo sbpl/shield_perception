@@ -7,7 +7,7 @@ roslib.load_manifest('laser_assembler')
 from laser_assembler.srv import *
 
 # Method marcro: 0 = bounding box, 1 = color filtering
-METHOD_ID=1
+METHOD_ID=0
 
 def callback(pc):
     # pc_save = args[1]
