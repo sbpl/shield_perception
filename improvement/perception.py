@@ -3,11 +3,10 @@ import numpy as np
 import sys
 import pyzed.sl as sl
 import math
-import pdb
+from numpy.fft import fft2, ifft2
 
 min_radius = 1  # Minimum radius of the ball
-max_radius = 100  # Maximum radius of the ball
-
+max_radius = 20  # Maximum radius of the ball
 
 
 def main() :
@@ -59,9 +58,6 @@ def main() :
             # Retrieve colored point cloud. Point cloud is aligned on the left image.
             zed.retrieve_measure(point_cloud, sl.MEASURE.XYZRGBA)
             zed.retrieve_measure(confidence_map, sl.MEASURE.CONFIDENCE)
-            # pdb.set_trace()
-            # for e in sl.MEASURE:
-            #     print(e.name)
 
             # Convert ZED Mat objects to numpy arrays
             image_ocv = image.get_data()
@@ -70,14 +66,21 @@ def main() :
 
             # Define the adjusted range for bright orange color in HSV
             lower_bound = np.array([8, 150, 150])
-            upper_bound = np.array([20, 255, 255])
+            upper_bound = np.array([15, 255, 255])
 
             # Create a binary mask for orange color in HSV
             mask = cv2.inRange(hsv_image, lower_bound, upper_bound)
+            
+
+            # Apply Sobel filter for edge detection
+            sobel_image = cv2.Sobel(mask, cv2.CV_8U, 1, 0, ksize=3)
+            sobel_image = cv2.dilate(sobel_image, None, iterations=2)
+            sobel_image = cv2.erode(sobel_image, None, iterations=2)
 
 
             # Find contours in the mask
-            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours, _ = cv2.findContours(sobel_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
 
             for contour in contours:
 
@@ -90,7 +93,7 @@ def main() :
                 if radius < min_radius or radius > max_radius:
                     continue
 
-                # Draw the circle
+                # Draw the bounding box
                 cv2.circle(image_ocv, center, radius, (0, 255, 0), 2)
                 # x, y, w, h = cv2.boundingRect(contour)
                 # cv2.rectangle(image_ocv, (x, y), (x + w, y + h), (0, 0, 255), 2)
@@ -103,14 +106,14 @@ def main() :
                 
                 # Get and print distance value in mm at the center of the image
                 # We measure the distance camera - object using Euclidean distance
-                distance = math.sqrt(point_cloud_value[0] * point_cloud_value[0] +
-                                    point_cloud_value[1] * point_cloud_value[1] +
-                                    point_cloud_value[2] * point_cloud_value[2])
-                
+                # distance = math.sqrt(point_cloud_value[0] * point_cloud_value[0] +
+                #                     point_cloud_value[1] * point_cloud_value[1] +
+                #                     point_cloud_value[2] * point_cloud_value[2])
 
-                if point_cloud_value[2] < 5:
+
+                if  point_cloud_value[2] < 5:
                     count = count + 1
-                    print (centroid_x,centroid_y,point_cloud_value[2],confidence_map.get_value(centroid_x, centroid_y))
+                    print (point_cloud_value[0],point_cloud_value[1],point_cloud_value[2],confidence_map.get_value(centroid_x, centroid_y))
             
             def click_event(event, x, y,  flags, params):
                 if event == cv2.EVENT_LBUTTONDBLCLK:
@@ -133,4 +136,3 @@ def main() :
 
 if __name__ == "__main__":
     main()
-
