@@ -39,7 +39,7 @@
     <rosparam>
       filter_field_name: x
       filter_limit_min: 1.0
-      filter_limit_max: 3.5
+      filter_limit_max: 4.0
       filter_limit_negative: False
       output_frame: base_link
     </rosparam>

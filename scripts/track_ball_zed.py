@@ -23,8 +23,16 @@ import pdb
 # Macro: 
 # METHOD_ID: 0 = bounding box, 1 = color filtering
 # NUM_FRAME: number of frames required to start estimation
-METHOD_ID=1
+# COLOR_FILTER: sets of color filtering in pc
+## 0: nothing
+## 1: lower = (160, 40, 40) upper = (250, 125, 125) - working, well?
+# PRINT_COLOR: print out color's bound
+# OUTLIER_REJECT: perform outlier reject or not
+METHOD_ID=0
 NUM_FRAME=3
+COLOR_FILTER=0
+PRINT_COLOR=0
+OUTLIER_REJECT=1
 
 ##########################################################################
 #############################Function#####################################
@@ -85,7 +93,6 @@ def structure_callback( ros_cloud, args ):
     # Converting point cloud to python vectors
     point_list = []
     pc = rnp.numpify(ros_cloud)
-    # pc = rnp.point_cloud2.split_rgb_field(pc)
     points = np.zeros((pc.shape[0],3),dtype=np.float32)
     points_rgb = np.zeros((pc.shape[0],1),dtype=np.float32)
     points[:,0] = pc['x']
@@ -93,15 +100,75 @@ def structure_callback( ros_cloud, args ):
     points[:,2] = pc['z']
     if 'rgb' in pc.dtype.fields:
         points_rgb = pc['rgb']
+        pc_rgb = rnp.point_cloud2.split_rgb_field(pc)
+
+        if pc_rgb['r'].shape[0] > 0:
+            # This part is to find the bound for pc rgb filtering\
+            if PRINT_COLOR:
+                r_min = np.min(pc_rgb['r'])
+                g_min = np.min(pc_rgb['g'])
+                b_min = np.min(pc_rgb['b'])
+                r_max = np.max(pc_rgb['r'])
+                g_max = np.max(pc_rgb['g'])
+                b_max = np.max(pc_rgb['b'])
+                print("The RGB lower bound is:({} {} {})".format(r_min, g_min, b_min))
+                print("The RGB upper bound is:({} {} {})".format(r_max, g_max, b_max))
+        
+            # Color filtering
+            # pdb.set_trace()
+            if COLOR_FILTER==1:
+                # Finding common indices
+                ind_r = np.intersect1d(np.where(pc_rgb['r'] > 160)[0], np.where(pc_rgb['r'] < 250)[0])
+                ind_g = np.intersect1d(np.where(pc_rgb['g'] > 40)[0], np.where(pc_rgb['g'] < 125)[0])
+                ind_b = np.intersect1d(np.where(pc_rgb['b'] > 40)[0], np.where(pc_rgb['b'] < 125)[0])
+                ind = np.intersect1d(np.intersect1d(ind_r, ind_g), ind_b)
+                points = points[ind,:]
+                points_rgb = points_rgb[ind]
+            if COLOR_FILTER==2:
+                # Finding common indices
+                ind_r = np.intersect1d(np.where(pc_rgb['r'] > 150)[0], np.where(pc_rgb['r'] < 250)[0])
+                ind_g = np.intersect1d(np.where(pc_rgb['g'] > 50)[0], np.where(pc_rgb['g'] < 100)[0])
+                ind_b = np.intersect1d(np.where(pc_rgb['b'] > 40)[0], np.where(pc_rgb['b'] < 100)[0])
+                ind = np.intersect1d(np.intersect1d(ind_r, ind_g), ind_b)
+                points = points[ind,:]
+                points_rgb = points_rgb[ind]
+
     # pdb.set_trace()
     # Filter out some points that exceed spatial limit
     # ball_points = points[points[:,1]>y_neg_lim,:]
     # ball_points = ball_points[ball_points[:,1]<y_pos_lim,:]
     # ball_points = ball_points[ball_points[:,2]>z_neg_lim,:]
     # ball_points = ball_points[ball_points[:,2]<z_pos_lim,:]
-    # Only count the points when sc capture enough (5+) points
-    if(points.shape[0]<5):
+    # Only count the points when sc capture enough (15+) points
+    if(points.shape[0]<15):
         return
+    
+    # Outlier rejection
+    if OUTLIER_REJECT:
+        x_mean = np.mean(points[:,0])
+        y_mean = np.mean(points[:,1])
+        z_mean = np.mean(points[:,2])
+        x_std = np.std(points[:,0])
+        y_std = np.std(points[:,1])
+        z_std = np.std(points[:,2])
+        ind_x = np.intersect1d(np.where(points[:,0] > x_mean - 2*x_std)[0], np.where(points[:,0] < x_mean + 2*x_std)[0])
+        ind_y = np.intersect1d(np.where(points[:,1] > y_mean - 2*y_std)[0], np.where(points[:,1] < y_mean + 2*y_std)[0])
+        ind_z = np.intersect1d(np.where(points[:,2] > z_mean - 2*z_std)[0], np.where(points[:,2] < z_mean + 2*z_std)[0])
+        ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
+        points = points[ind,:]
+        points_rgb = points_rgb[ind]
+        
+
+    # Transform the pointcloud into base_link frame
+    sc_points = np.concatenate(
+                  [points.transpose(),
+                  np.ones((1,points.shape[0]))],
+                  axis=0)
+    base_frame_points = np.linalg.multi_dot(
+                    [sc_obj.A_FP_SC, track_obj.res_roll_A,
+                    track_obj.res_pitch_A, track_obj.res_yaw_A,
+                    sc_points])
+    points = base_frame_points[0:3,:].transpose()
     ball_position = np.mean(points, axis=0)
     # Save data into data structure in object
     sc_obj.ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
@@ -120,17 +187,17 @@ def structure_callback( ros_cloud, args ):
               rospy.Time.now().to_sec())
         sc_obj.projectile_computed = True
     # If debug mode is set, publish data collected to filterd_msg
-    if track_obj.g_debug:
-        dtype_list = rnp.point_cloud2.fields_to_dtype(
-                   ros_cloud.fields,
-                   ros_cloud.point_step )
-        filtered_msg = xyzrgb_array_to_pointcloud2(
-                     points,
-                     np.zeros(points.shape, dtype=np.float64),
-                     ros_cloud.header.stamp,
-                     "launcher_camera",
-                     ros_cloud.header.seq )
-        sc_obj.publisher.publish(filtered_msg)
+    # if track_obj.g_debug:
+    #     dtype_list = rnp.point_cloud2.fields_to_dtype(
+    #                ros_cloud.fields,
+    #                ros_cloud.point_step )
+    #     filtered_msg = xyzrgb_array_to_pointcloud2(
+    #                  points,
+    #                  np.zeros(points.shape, dtype=np.float64),
+    #                  ros_cloud.header.stamp,
+    #                  "launcher_camera",
+    #                  ros_cloud.header.seq )
+    #     sc_obj.publisher.publish(filtered_msg)
     # Timer for loop time
     # t3 = rospy.Time.now().to_sec()
     # print(t3-t1,t2-t1, "loop time")
@@ -256,7 +323,7 @@ class TrackBall( object ) :
                   " timestamp=", btes[3])
         else:
             print("First")
-            for i in [e]:
+            for i in range(s+1,e+1):
                 delx = bpes[i][0] - bpes[s][0]
                 dely = bpes[i][1] - bpes[s][1]
                 delz = bpes[i][2] - bpes[s][2]
@@ -397,10 +464,6 @@ class TrackBall( object ) :
         self.sc_sess.sc_find_FP()
         # self.ki_sess.ki_find_FP()
 
-        # Subscribe to cam output with callback functions
-        # rospy.Subscriber("/kinect_filtered/output", PointCloud2,
-        #                  kinect_callback,
-        #                  callback_args=(self,self.sc_sess,self.ki_sess))
         if METHOD_ID == 0:
             ## Using bounding box
             rospy.Subscriber("/zed_filtered/output", PointCloud2,
@@ -576,7 +639,7 @@ class SCSession ( object ):
         self.errors = []
         # Calculate Errors
         for i in range(NUM_FRAME):
-            error = np.max(
+            error = np.mean(
                   np.linalg.norm(
                   self.ball_pointcloud[i]
                   -self.ball_position_estimates_base[i].reshape((1,-1)),
@@ -592,20 +655,21 @@ class SCSession ( object ):
                 self.ball_time_estimates_filtered.append(
                     self.ball_time_estimates[i])
 
-        sc_points = np.concatenate(
-                  [np.array(self.ball_position_estimates_base_filtered).transpose(),
-                  np.ones((1,len(self.ball_position_estimates_base_filtered)))],
-                  axis=0)
-        pr2_frame_points = np.linalg.multi_dot(
-                         [self.A_FP_SC, track_obj.res_roll_A,
-                         track_obj.res_pitch_A, track_obj.res_yaw_A,
-                         sc_points])
-        pr2_frame_points += np.array(
-                         [[track_obj.x_offset],
-                         [track_obj.y_offset],
-                         [track_obj.z_offset],
-                         [0.0]])
-        self.ball_position_estimates = pr2_frame_points[0:3,:].transpose().tolist()
+        ## This step is no longer needed. The transform is done during callback
+        # sc_points = np.concatenate(
+        #           [np.array(self.ball_position_estimates_base_filtered).transpose(),
+        #           np.ones((1,len(self.ball_position_estimates_base_filtered)))],
+        #           axis=0)
+        # base_frame_points = np.linalg.multi_dot(
+        #                  [self.A_FP_SC, track_obj.res_roll_A,
+        #                  track_obj.res_pitch_A, track_obj.res_yaw_A,
+        #                  sc_points])
+        # base_frame_points += np.array(
+        #                  [[track_obj.x_offset],
+        #                  [track_obj.y_offset],
+        #                  [track_obj.z_offset],
+        #                  [0.0]])
+        self.ball_position_estimates = self.ball_position_estimates_base_filtered
         self.first_sc_timestamp = self.ball_time_estimates_filtered[0]
 
 

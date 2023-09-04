@@ -13,7 +13,7 @@ import pdb
 
 
 min_radius = 3  # Minimum radius of the ball
-max_radius = 100  # Maximum radius of the ball
+max_radius = 40  # Maximum radius of the ball
 
 
 def callback(rgb_msg, depth_msg, pc_msg, confidence_msg, pub):
@@ -38,8 +38,13 @@ def callback(rgb_msg, depth_msg, pc_msg, confidence_msg, pub):
     # Create a binary mask for orange color in HSV
     mask = cv2.inRange(hsv_image, lower_bound, upper_bound)
 
+    # Apply Sobel filter for edge detection
+    sobel_image = cv2.Sobel(mask, cv2.CV_8U, 1, 0, ksize=3)
+    sobel_image = cv2.dilate(sobel_image, None, iterations=2)
+    sobel_image = cv2.erode(sobel_image, None, iterations=2)
+
     # Find contours in the mask
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(sobel_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     filtered_points = []
     filtered_points_confident = []
@@ -74,7 +79,7 @@ def callback(rgb_msg, depth_msg, pc_msg, confidence_msg, pub):
         confidence = confidence_map_np[where[0],where[1]]
         # confidence = np.mean(confidence, axis=0)
         for ind,(d, c) in enumerate(zip(depth_points, confidence)):
-            if d < 6 and c < 10:
+            if d < 5 and c < 50:
                 # Get the corresponding point cloud value at the centroid pixel
                 # point_cloud_value = point_cloud[centroid_y,centroid_x]
                 point_cloud_poi = point_cloud[where[0][ind], where[1][ind]] 
