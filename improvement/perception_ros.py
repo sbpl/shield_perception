@@ -6,25 +6,29 @@ from cv_bridge import CvBridge
 import cv2
 import message_filters
 import numpy as np
+import ros_numpy as rnp
 import sensor_msgs.point_cloud2 as pc2
+import pdb
 
 
-min_radius = 1  # Minimum radius of the ball
-max_radius = 100  # Maximum radius of the ball
+min_radius = 3  # Minimum radius of the ball
+max_radius = 40  # Maximum radius of the ball
 
 
-def callback(rgb_msg, depth_msg, pc_msg, confidence_msg):
+def callback(rgb_msg, depth_msg, pc_msg, confidence_msg, pub):
+    # print("In detect ball call back!!!")
     bridge = CvBridge()
-    rgb_image = bridge.imgmsg_to_cv2(rgb_msg, desired_encoding='passthrough')
-    depth_image = bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
-    point_cloud = bridge.imgmsg_to_cv2(pc_msg, desired_encoding='passthrough')
-    confidence_image = bridge.imgmsg_to_cv2(confidence_msg, desired_encoding='passthrough')
+    rgb_image = bridge.imgmsg_to_cv2(rgb_msg, desired_encoding='bgra8')
+    depth_image = bridge.imgmsg_to_cv2(depth_msg, desired_encoding='32FC1')
+    # point_cloud = bridge.imgmsg_to_cv2(pc_msg, desired_encoding='passthrough')
+    point_cloud = rnp.numpify(pc_msg)
+    confidence_image = bridge.imgmsg_to_cv2(confidence_msg, desired_encoding='32FC1')
 
     # Convert ZED Mat objects to numpy arrays
     depth_map_np = depth_image
     confidence_map_np = confidence_image
 
-    hsv_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2HSV)
+    hsv_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2HSV)
 
     # Define the adjusted range for bright orange color in HSV
     lower_bound = np.array([8, 150, 150])
@@ -33,10 +37,16 @@ def callback(rgb_msg, depth_msg, pc_msg, confidence_msg):
     # Create a binary mask for orange color in HSV
     mask = cv2.inRange(hsv_image, lower_bound, upper_bound)
 
+    # Apply Sobel filter for edge detection
+    sobel_image = cv2.Sobel(mask, cv2.CV_8U, 1, 0, ksize=3)
+    sobel_image = cv2.dilate(sobel_image, None, iterations=2)
+    sobel_image = cv2.erode(sobel_image, None, iterations=2)
+
     # Find contours in the mask
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(sobel_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     filtered_points = []
+    filtered_points_confident = []
 
     for contour in contours:
         (x, y), radius = cv2.minEnclosingCircle(contour)
@@ -56,36 +66,62 @@ def callback(rgb_msg, depth_msg, pc_msg, confidence_msg):
         centroid_y = int(y)
 
         # Extract depth and confidence values
-        depth = depth_map_np[centroid_x, centroid_y]
-        confidence = confidence_map_np[centroid_x, centroid_y]
+        # depth = depth_map_np[centroid_y,centroid_x]
 
-        if depth < 5 and confidence < 40:
-            # Get the corresponding point cloud value at the centroid pixel
-            point_cloud_value = point_cloud[centroid_x, centroid_y]
+        mask = np.zeros(rgb_image.shape, np.uint8)
+        cv2.circle(mask, center, radius, 255, -1)
+        where = np.where(mask == 255)
+        depth_points = depth_map_np[where[0], where[1]]
+        # depth = np.mean(depth_points)
+        # pdb.set_trace()
+        # confidence = confidence_map_np[centroid_y,centroid_x]
+        confidence = confidence_map_np[where[0],where[1]]
+        # confidence = np.mean(confidence, axis=0)
+        for ind,(d, c) in enumerate(zip(depth_points, confidence)):
+            if d < 5 and c < 50:
+                # Get the corresponding point cloud value at the centroid pixel
+                # point_cloud_value = point_cloud[centroid_y,centroid_x]
+                point_cloud_poi = point_cloud[where[0][ind], where[1][ind]] 
+                # pdb.set_trace()
+                # poi = [[p[0], p[1], p[2]] for p in point_cloud_poi]
+                # poi = np.array(point_cloud_poi[0:3])
+                # pdb.set_trace()
 
-            # Append the filtered point with X, Y, Z coordinates
-            filtered_points.append([point_cloud_value[0], point_cloud_value[1], point_cloud_value[2]])
+                # point_cloud_value = np.mean(poi, axis=0)
+
+                # Append the filtered point with X, Y, Z coordinates
+                # filtered_points.append([point_cloud_value[0], point_cloud_value[1], point_cloud_value[2]])
+                # filtered_points.append([poi[0], poi[1], poi[2]])
+                filtered_points.append([point_cloud_poi[0], point_cloud_poi[1], point_cloud_poi[2]])
+                filtered_points_confident.append(c)
 
     # Publish the filtered point cloud
     if filtered_points:
         filtered_pc = pc2.create_cloud_xyz32(pc_msg.header, filtered_points)
+        # for ind, pc in enumerate(filtered_points):
+        #     print("Publishing point_cloud_filtered {}: X:{:.2f}    Y:{:.2f}    Z:{:.2f}".format(ind, pc[0],pc[1],pc[2]))
+        #     print("with confident:{:.2f}".format(filtered_points_confident[ind]))
+        filtered_points_np = np.array(filtered_points)
+        pc_mean = np.mean(filtered_points_np, axis=0)
+        print("Publishing point_cloud_filtered with mean: X:{:.2f}    Y:{:.2f}    Z:{:.2f}".format(pc_mean[0],pc_mean[1],pc_mean[2]))
+        print("with mean confident:{:.2f}".format(np.mean(np.array(filtered_points_confident))))
         pub.publish(filtered_pc)
 
-    cv2.imshow('RGB Image', hsv_image)
-    cv2.waitKey(1)
+    # cv2.imshow('RGB Image', rgb_image)
+    # cv2.waitKey(1)
 
 def main():
     rospy.init_node('zed_subscriber', anonymous=True)
     pub = rospy.Publisher('/zed2i/filtered_point_cloud', PointCloud2, queue_size=10)
 
     # Subscribe to the RGB, Depth, Point Cloud, and Confidence topics using message_filters
-    rgb_sub = message_filters.Subscriber('/zed2i/rgb/image_rect_color', Image)
-    depth_sub = message_filters.Subscriber('/zed2i/depth/depth_registered', Image)
-    point_cloud_sub = message_filters.Subscriber('/zed2i/point_cloud/cloud_registered', PointCloud2)
-    confidence_sub = message_filters.Subscriber('/zed2i/confidence/confidence_map', Image)
+    rgb_sub = message_filters.Subscriber('/zed2i/zed_nodelet/rgb/image_rect_color', Image)
+    depth_sub = message_filters.Subscriber('/zed2i/zed_nodelet/depth/depth_registered', Image)
+    point_cloud_sub = message_filters.Subscriber('/zed2i/zed_nodelet/point_cloud/cloud_registered', PointCloud2)
+    confidence_sub = message_filters.Subscriber('/zed2i/zed_nodelet/confidence/confidence_map', Image)
 
     ts = message_filters.TimeSynchronizer([rgb_sub, depth_sub, point_cloud_sub, confidence_sub], 10)
-    ts.registerCallback(callback)
+    ts.registerCallback(callback, pub)
 
     rospy.spin()
 
