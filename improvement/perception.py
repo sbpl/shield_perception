@@ -1,13 +1,19 @@
+#!/usr/bin/env python
+
 import cv2
 import numpy as np
 import sys
 import pyzed.sl as sl
-import math
 from numpy.fft import fft2, ifft2
+import rospy
+from scipy.optimize import least_squares
+from std_msgs.msg import Float64MultiArray
 
 min_radius = 1  # Minimum radius of the ball
-max_radius = 20  # Maximum radius of the ball
+max_radius = 30  # Maximum radius of the ball
 
+Num_Frame = 3
+measurements = []
 
 def main() :
     # Create a ZED camera object
@@ -34,6 +40,15 @@ def main() :
     runtime_parameters.confidence_threshold = 100
     runtime_parameters.texture_confidence_threshold = 100
 
+    # SVO file frame rate
+    svo_parameters = zed.get_svo_runtime_parameters()
+    frame_rate = svo_parameters.get_svo_real_time_mode()
+    print(f"Frame Rate: {frame_rate} FPS")
+
+    # # Create ROS publisher for (x0, y0, z0, vx0, vy0, vz0)
+    # rospy.init_node('zed_trajectory_publisher')
+    # pub = rospy.Publisher('/zed/trajectory', Float64MultiArray, queue_size=10)
+
     # Capture images
     i = 0
     image= sl.Mat()
@@ -45,10 +60,10 @@ def main() :
     mirror_ref.set_translation(sl.Translation(2.75,4.0,0))
     tr_np = mirror_ref.m
 
+    count = 0
+    t1 = None
 
-    count=0
-
-    while i < 3000:
+    while i < 1000:
         #A new image is available if grab() returns SUCCESS
         if zed.grab(runtime_parameters) == sl.ERROR_CODE.SUCCESS:
             # Retrieve left image
@@ -66,7 +81,7 @@ def main() :
 
             # Define the adjusted range for bright orange color in HSV
             lower_bound = np.array([8, 150, 150])
-            upper_bound = np.array([15, 255, 255])
+            upper_bound = np.array([20, 255, 255])
 
             # Create a binary mask for orange color in HSV
             mask = cv2.inRange(hsv_image, lower_bound, upper_bound)
@@ -95,30 +110,44 @@ def main() :
 
                 # Draw the bounding box
                 cv2.circle(image_ocv, center, radius, (0, 255, 0), 2)
-                # x, y, w, h = cv2.boundingRect(contour)
-                # cv2.rectangle(image_ocv, (x, y), (x + w, y + h), (0, 0, 255), 2)
-  
+                
                 # Calculate centroid of the circle
                 centroid_x = int(x)
                 centroid_y = int(y)
                 
                 err, point_cloud_value = point_cloud.get_value(centroid_x, centroid_y)
-                
-                # Get and print distance value in mm at the center of the image
-                # We measure the distance camera - object using Euclidean distance
-                # distance = math.sqrt(point_cloud_value[0] * point_cloud_value[0] +
-                #                     point_cloud_value[1] * point_cloud_value[1] +
-                #                     point_cloud_value[2] * point_cloud_value[2])
 
 
-                if  point_cloud_value[2] < 5:
+                if point_cloud_value[2] < 5:
                     count = count + 1
-                    print (point_cloud_value[0],point_cloud_value[1],point_cloud_value[2],confidence_map.get_value(centroid_x, centroid_y))
+                    if t1 is None:
+                        t1 = rospy.Time.now()
+                        t = 0.0  # t1 = 0 for the first set of measurements
+                    else:
+                        t = (rospy.Time.now() - t1).to_sec()  # Calculate t2 and t3 relative to t1
+
+                    print(f"t: {t}, X: {point_cloud_value[0]}, Y: {point_cloud_value[1]}, Z: {point_cloud_value[2]}, Confidence: {confidence_map.get_value(centroid_x, centroid_y)}")
+                    measurements.append((t, point_cloud_value[0], point_cloud_value[1], point_cloud_value[2]))
+
+                if count >= Num_Frame:
+                    # Perform trajectory estimation here using the measurements
+                    estimated_params = estimate_trajectory(measurements)
+                    print(f"Estimated Parameters: {estimated_params}")
+                    
+                    # # Publish (x0, y0, z0, vx0, vy0, vz0) as a ROS message
+                    # traj_msg = Float64MultiArray()
+                    # traj_msg.data = estimated_params
+                    # pub.publish(traj_msg)
+
+                    measurements.clear()
+                    t1 = None
+
             
             def click_event(event, x, y,  flags, params):
                 if event == cv2.EVENT_LBUTTONDBLCLK:
                     print('Col: ', x, ' Row: ', y)
                     print(hsv_image[y, x])
+            
             cv2.namedWindow('image')
             cv2.setMouseCallback('image',click_event)
             cv2.imshow("image", image_ocv)
@@ -128,11 +157,39 @@ def main() :
             point_cloud_np.dot(tr_np)
 
             i = i + 1
-            # if cv2.waitKey(1) & 0xFF == ord('q'):
-            #     break
 
     cv2.destroyAllWindows()
     zed.close()
+
+# Define the mathematical model for the trajectory
+def trajectory_model(params, t):
+    x0, y0, z0, vx0, vy0, vz0 = params
+    t_squared = t**2
+    x = x0 + vx0 * t
+    y = y0 + vy0 * t
+    z = z0 + vz0 * t - 0.5 * 9.81 * t_squared
+    return np.array([x, y, z])
+
+# Define the error function to minimize (sum of squared errors)
+def error_function(params):
+    errors = []
+    for t, observed_x, observed_y, observed_z in measurements:
+        predicted_position = trajectory_model(params, t)
+        errors.extend([observed_x - predicted_position[0], observed_y - predicted_position[1], observed_z - predicted_position[2]])
+    return errors
+
+# Function to estimate the trajectory parameters using least squares
+def estimate_trajectory(measurements):
+    # Initial guess for the model parameters (adjust as needed)
+    initial_params = (0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
+
+    # Use least squares optimization to estimate the model parameters
+    result = least_squares(error_function, initial_params)
+
+    # Extract the optimized parameters representing initial position and velocity
+    x0, y0, z0, vx0, vy0, vz0 = result.x
+    return (x0, y0, z0, vx0, vy0, vz0)
+
 
 if __name__ == "__main__":
     main()
