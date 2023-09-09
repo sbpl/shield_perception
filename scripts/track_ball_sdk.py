@@ -21,8 +21,11 @@ from constants import *
 # MACRO
 OUTLIER_REJECT=1
 DIST_THRESHOLD=5
-MIN_PIXEL=15
+MIN_PIXEL=30
 PUBLISH_PROJ=1
+COLOR_DETECTION=1
+BOUNDING_BOX=0
+DEBUG=0
 
 # min_radius = 1  # Minimum radius of the ball
 # max_radius = 30  # Maximum radius of the ball
@@ -188,10 +191,6 @@ def main():
     runtime_parameters.confidence_threshold = 100
     runtime_parameters.texture_confidence_threshold = 100
 
-    # # Create ROS publisher for (x0, y0, z0, vx0, vy0, vz0)
-    # rospy.init_node('zed_trajectory_publisher')
-    # pub = rospy.Publisher('/zed/trajectory', Float64MultiArray, queue_size=10)
-
     # Capture images
     i = 0
     image= sl.Mat()
@@ -199,68 +198,60 @@ def main():
     point_cloud = sl.Mat()
     confidence_map = sl.Mat()
 
-    # mirror_ref = sl.Transform()
-    # mirror_ref.set_translation(sl.Translation(2.75,4.0,0))
-    # tr_np = mirror_ref.m
-
     count = 0
-    t1 = None
 
     while i < 500:
         #A new image is available if grab() returns SUCCESS
         if zed.grab(runtime_parameters) == sl.ERROR_CODE.SUCCESS:
+
+            # Time Stamps of getting the Frame
             stamp_temp = rospy.Time.now().to_sec()
             i = i + 1
             fps = zed.get_current_fps()
-            # parameters = zed.getruntime_parameters()
-            # frame_rate = svo_parameters.get_svo_real_time_mode()
             print("Frame Rate: {} FPS".format(fps))
-            # Retrieve left image
+
+            # Retrieving Data
             zed.retrieve_image(image, sl.VIEW.LEFT)
-            # Retrieve depth map. Depth is aligned on the left image
-            # zed.retrieve_measure(depth, sl.MEASURE.DEPTH)
-            # Retrieve colored point cloud. Point cloud is aligned on the left image.
             zed.retrieve_measure(point_cloud, sl.MEASURE.XYZRGBA)
             zed.retrieve_measure(confidence_map, sl.MEASURE.CONFIDENCE)
-            # continue
-
-            # Convert ZED Mat objects to numpy arrays
-            image_ocv = image.get_data()
-
-            hsv_image = cv2.cvtColor(image_ocv, cv2.COLOR_BGR2HSV)
-
-            # Define the adjusted range for bright orange color in HSV
-            lower_bound = np.array([8, 150, 150])
-            upper_bound = np.array([20, 255, 255])
-
-            # Create a binary mask for orange color in HSV
-            mask = cv2.inRange(hsv_image, lower_bound, upper_bound)
-            image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
-            # cv2.namedWindow('image1')
-            # cv2.imshow("image1", image_masked)
-            # cv2.waitKey(0)
-            where = np.where(mask == 255)
-            if len(where[0]) > 0:
-                if where[0].shape[0] < MIN_PIXEL:
-                    continue
-            # depth_np = depth.get_data()
+            # Turning Data into np array
             pc_xyz_np = point_cloud.get_data()[:,:,:3]
             pc_rgb_np = point_cloud.get_data()[:,:,3]
-            # pc_rgb_np = cv2.cvtColor(pc_bgr_np, cv2.COLOR_BGR2RGB)
-            # pdb.set_trace()
-            # Transform xyz from camleft to base
             confidence_np = confidence_map.get_data()
+            
+            # Color Detection Method
+            if COLOR_DETECTION:
+                # Convert ZED Mat objects to numpy arrays
+                image_ocv = image.get_data()
+                hsv_image = cv2.cvtColor(image_ocv, cv2.COLOR_BGR2HSV)
 
-            # depth_poi = depth_np[where[0], where[1]]
-            confidence_poi_all = confidence_np[where[0], where[1]].reshape((-1,1))
-            pc_xyz_poi_all = pc_xyz_np[where[0], where[1], :].reshape((-1,3))
-            pc_rgb_poi_all = pc_rgb_np[where[0], where[1]].reshape((-1,1))
-            valid_ind = np.logical_not(np.isnan(pc_xyz_poi_all[:,0]))
+                # Define the adjusted range for bright orange color in HSV
+                lower_bound = np.array([8, 150, 150])
+                upper_bound = np.array([20, 255, 255])
 
-            confidence_poi = confidence_poi_all[valid_ind,:]
-            pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
-            pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
-            pc_xyz_poi = np.dot(T_BASE_TO_LEFT, np.append(pc_xyz_poi, np.ones((pc_xyz_poi.shape[0],1)), axis=1).transpose())[0:3,:].transpose()
+                # Create a binary mask for orange color in HSV
+                mask = cv2.inRange(hsv_image, lower_bound, upper_bound)
+                where = np.where(mask == 255)
+
+                # DEBUG: Visualize masked image
+                if DEBUG:
+                    image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
+                    cv2.namedWindow('image1')
+                    cv2.imshow("image1", image_masked)
+                    cv2.waitKey(1)
+
+                # Masked PC and Confidence
+                confidence_poi_all = confidence_np[where[0], where[1]].reshape((-1,1))
+                pc_xyz_poi_all = pc_xyz_np[where[0], where[1], :].reshape((-1,3))
+                pc_rgb_poi_all = pc_rgb_np[where[0], where[1]].reshape((-1,1))
+                valid_ind = np.logical_not(np.isnan(pc_xyz_poi_all[:,0]))
+
+                # Throw out NAN
+                confidence_poi = confidence_poi_all[valid_ind,:]
+                pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
+                pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
+                # TF
+                pc_xyz_poi = np.dot(T_BASE_TO_LEFT, np.append(pc_xyz_poi, np.ones((pc_xyz_poi.shape[0],1)), axis=1).transpose())[0:3,:].transpose()
 
             # Outlier rejection
             if OUTLIER_REJECT:
@@ -278,53 +269,20 @@ def main():
                 pc_rgb_poi = pc_rgb_poi[ind,:]
                 confidence_poi = confidence_poi[ind,:]
 
-            # pdb.set_trace()
-            # Apply Sobel filter for edge detection
-            # sobel_image = cv2.Sobel(mask, cv2.CV_8U, 1, 0, ksize=3)
-            # sobel_image = cv2.dilate(sobel_image, None, iterations=2)
-            # sobel_image = cv2.erode(sobel_image, None, iterations=2)
-
-            # cv2.namedWindow('image1')
-            # cv2.imshow("image1", image_masked)
-            # cv2.waitKey(0)
-
-            # Find contours in the mask
-            # contours, _ = cv2.findContours(sobel_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            
-
-            # for contour in contours:
-
-            # Fit a circle to the contour
-            # (x, y), radius = cv2.minEnclosingCircle(contour)
-            # center = (int(x), int(y))
-            # radius = int(radius)
-
-            # Apply radius threshold
-            # if radius < min_radius or radius > max_radius:
-            #     continue
-
-            # Draw the bounding box
-            # cv2.circle(image_ocv, center, radius, (0, 255, 0), 2)
-            
-            # Calculate centroid of the circle
-            # centroid_x = int(x)
-            # centroid_y = int(y)
-            
-            # err, point_cloud_value = point_cloud.get_value(centroid_x, centroid_y)
+            # Only continue if there are more than MIN_PIXEL points (30+)
+            if pc_xyz_poi.shape[0] < MIN_PIXEL:
+                continue
 
             # Calculate the mean of the depth
             mean_X = np.mean(pc_xyz_poi[:,0])
-            print(mean_X)
             mean_Y = np.mean(pc_xyz_poi[:,1])
             mean_Z = np.mean(pc_xyz_poi[:,2])
             mean_Conf = np.mean(confidence_poi[:])
-            # mean_Con = np.mean(confidence_poi)
+            if DEBUG:
+                print("Mean Depth: {}".format(mean_X))
+
             if mean_X != 0 and mean_X < DIST_THRESHOLD:
-                # cv2.namedWindow('image1')
-                # cv2.imshow("image1", image_masked)
-                # cv2.waitKey(0)
-                # pdb.set_trace()
-                # exit()
+                # Record Time stamps
                 count = count + 1
                 if count == 1:
                     t = 0.0
@@ -332,27 +290,20 @@ def main():
                 else:
                     t = stamp_temp-stamps[0]
                     stamps.append(stamp_temp)
-                # if t1 is None:
-                #     t1 = rospy.Time.now().to_sec()
-                #     t = 0.0  # t1 = 0 for the first set of measurements
-                # else:
-                #     # t = (rospy.Time.now() - t1).to_sec()  # Calculate t2 and t3 relative to t1
-                #     t = (rospy.Time.now().to_sec() - t1)  # Calculate t2 and t3 relative to t1
 
-                # print(f"t: {t}, X: {mean_X}, Y: {mean_Y}, Z: {mean_Z}, Confidence: {mean_Con}")
+                # Storing Data
                 print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}, Conf: {:.3f}".format(t, mean_X, mean_Y, mean_Z, mean_Conf))
                 measurements.append((t, mean_X, mean_Y, mean_Z))
-
-                # Store point cloud
                 pc_xyz_list.append(pc_xyz_poi)
                 pc_rgb_list.append(pc_rgb_poi)
 
+            # Collected Enough Points
             if count >= Num_Frame:
                 # Perform trajectory estimation here using the measurements
                 estimated_params = estimate_trajectory(measurements)
                 print(f"Estimated Parameters (XYZ,VxVyVz): \n{estimated_params}")
-                
-                # # Publish (x0, y0, z0, vx0, vy0, vz0) as a ROS message
+
+                # Publish Projectile Msg            
                 projectile_msg = Projectile()
                 header = std_msgs.msg.Header()
                 header.stamp = rospy.Time.now()
@@ -376,17 +327,7 @@ def main():
 
                 break
 
-                # traj_msg = Float64MultiArray()
-                # traj_msg.data = estimated_params
-                # pub.publish(traj_msg)
-
-                # measurements.clear()
-                # t1 = None
-
-            # if count == Num_Frame:
-            #     break
-
-            
+            # Code to pick color on-click on image
             # def click_event(event, x, y,  flags, params):
             #     if event == cv2.EVENT_LBUTTONDBLCLK:
             #         print('Col: ', x, ' Row: ', y)
@@ -397,8 +338,6 @@ def main():
             # cv2.imshow("image", image_ocv)
             # cv2.waitKey(1)
             
-            # point_cloud_np = point_cloud.get_data()
-            # point_cloud_np.dot(tr_np)
 
     # Cleanup ZED and CV
     cv2.destroyAllWindows()
@@ -417,9 +356,6 @@ def main():
             print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}".format(frame[0], frame[1], frame[2], frame[3]))
         print("*******************************************************")
         print("Projectile Publish Stamp: {}".format(finish_stamp))
-
-
-
 
 
 if __name__ == "__main__":
