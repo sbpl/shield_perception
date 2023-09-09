@@ -265,12 +265,23 @@ class Calibration:
         tran_base_to_cambase = T_base_to_cambase[0:3, 3]/1000
         print('Camera base pose in base frame (rpy, xyz): ', rot_base_to_cambase, tran_base_to_cambase)
 
+    def base_to_camleft(self):
+        T_base_to_camleft = np.matmul(self.T_base_to_cam, T_LEFTOPT_TO_LEFT)
+        R_base_to_camleft = R.from_matrix(T_base_to_camleft[0:3, 0:3])
+        rot_base_to_camleft = R_base_to_camleft.as_euler('xyz')
+        tran_base_to_camleft = T_base_to_camleft[0:3, 3]/1000
+        T_base_to_camleft_m = T_base_to_camleft
+        T_base_to_camleft_m[0:3,3] = T_base_to_camleft[0:3,3]/1000
+        print('Camera left pose in base frame (rpy, xyz): ', rot_base_to_camleft, tran_base_to_camleft)
+        print('Camera base to left frame T: \n',T_base_to_camleft_m)
+
 def main():
     calibrator = Calibration('camera_calibration/calib_data/')
     calibrator.calibrate()
     # calibrator.statistic()
     calibrator.test()
     calibrator.base_to_cambase()
+    calibrator.base_to_camleft()
 
 
 if __name__ == '__main__':

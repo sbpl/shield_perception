@@ -40,10 +40,7 @@ def main() :
     runtime_parameters.confidence_threshold = 100
     runtime_parameters.texture_confidence_threshold = 100
 
-    # SVO file frame rate
-    svo_parameters = zed.get_svo_runtime_parameters()
-    frame_rate = svo_parameters.get_svo_real_time_mode()
-    print(f"Frame Rate: {frame_rate} FPS")
+    
 
     # # Create ROS publisher for (x0, y0, z0, vx0, vy0, vz0)
     # rospy.init_node('zed_trajectory_publisher')
@@ -63,17 +60,21 @@ def main() :
     count = 0
     t1 = None
 
-    while i < 1000:
+    while i < 100:
         #A new image is available if grab() returns SUCCESS
         if zed.grab(runtime_parameters) == sl.ERROR_CODE.SUCCESS:
+            i = i + 1
+            # SVO file frame rate
+            fps = zed.get_current_fps()
+            print("Frame Rate: {} FPS".format(fps))
             # Retrieve left image
             zed.retrieve_image(image, sl.VIEW.LEFT)
             # Retrieve depth map. Depth is aligned on the left image
-            zed.retrieve_measure(depth, sl.MEASURE.DEPTH)
+            # zed.retrieve_measure(depth, sl.MEASURE.DEPTH)
             # Retrieve colored point cloud. Point cloud is aligned on the left image.
             zed.retrieve_measure(point_cloud, sl.MEASURE.XYZRGBA)
-            zed.retrieve_measure(confidence_map, sl.MEASURE.CONFIDENCE)
-
+            # zed.retrieve_measure(confidence_map, sl.MEASURE.CONFIDENCE)
+            # continue
             # Convert ZED Mat objects to numpy arrays
             image_ocv = image.get_data()
 

@@ -22,7 +22,7 @@ from pydrake.all import BsplineTrajectory, KinematicTrajectoryOptimization, Solv
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, JointTrajectoryControllerState
 
-sim = True
+sim = False
 
 # model
 model_dir = '/home/shield/code/parallel_search/third_party/mujoco-2.3.2/model/abb/irb_1600/'
@@ -46,6 +46,7 @@ zed = sl.Camera()
 init_params = sl.InitParameters()
 init_params.camera_resolution = sl.RESOLUTION.HD2K
 init_params.camera_fps = 30
+init_params.camera_disable_self_calib = True
 err = zed.open(init_params)
 if err != sl.ERROR_CODE.SUCCESS:
     exit(-1)

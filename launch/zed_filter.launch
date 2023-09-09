@@ -48,8 +48,8 @@
     <remap from="~input" to="/zed_filtered_x/output" />
     <rosparam>
       filter_field_name: y
-      filter_limit_min: -1
-      filter_limit_max: 1.5
+      filter_limit_min: -2
+      filter_limit_max: 2
       filter_limit_negative: False
       output_frame: base_link
     </rosparam>
@@ -59,7 +59,7 @@
     <rosparam>
       filter_field_name: z
       filter_limit_min: 0.0
-      filter_limit_max: 2.5
+      filter_limit_max: 2.8
       filter_limit_negative: False
       output_frame: base_link
     </rosparam>

@@ -33,6 +33,7 @@ NUM_FRAME=3
 COLOR_FILTER=0
 PRINT_COLOR=0
 OUTLIER_REJECT=1
+PASSTHROUGH = 0
 
 ##########################################################################
 #############################Function#####################################
@@ -79,27 +80,60 @@ def ros_to_pcl(ros_cloud):
 
 # Call back function for structure core
 def structure_callback( ros_cloud, args ):
+    # rospy.logwarn("CALLBACK Stamp: {}".format(rospy.Time.now().to_sec()))
+    # rospy.loginfo("Cloud Stamp: {}".format(ros_cloud.header.stamp.to_sec()))
+    # return
     track_obj = args[0]
     sc_obj = args[1]
     # ki_obj = args[2]
     # Getting spatial limit from track ball object
-    # y_pos_lim = track_obj.y_pos_lim
-    # y_neg_lim = track_obj.y_neg_lim
-    # z_pos_lim = track_obj.z_pos_lim
-    # z_neg_lim = track_obj.z_neg_lim
+    x_pos_lim = track_obj.x_pos_lim
+    x_neg_lim = track_obj.x_neg_lim
+    y_pos_lim = track_obj.y_pos_lim
+    y_neg_lim = track_obj.y_neg_lim
+    z_pos_lim = track_obj.z_pos_lim
+    z_neg_lim = track_obj.z_neg_lim
     # If projectile already computed, just return
     if sc_obj.projectile_computed:
         return
-    # Converting point cloud to python vectors
+
+    ## Converting point cloud to python vectors
     point_list = []
     pc = rnp.numpify(ros_cloud)
-    points = np.zeros((pc.shape[0],3),dtype=np.float32)
-    points_rgb = np.zeros((pc.shape[0],1),dtype=np.float32)
-    points[:,0] = pc['x']
-    points[:,1] = pc['y']
-    points[:,2] = pc['z']
+
+    # Define array size
+    pc_size = 0
+    if len(pc.shape) == 1:
+        pc_size = pc.shape[0]
+    else:
+        pc_size = pc.shape[0]*pc.shape[1]
+
+    points = np.zeros((pc_size,3),dtype=np.float32)
+    points_rgb = np.zeros((pc_size,1),dtype=np.float32)
+    points[:,0] = pc['x'].flatten()
+    points[:,1] = pc['y'].flatten()
+    points[:,2] = pc['z'].flatten()
+
+    # rospy.logwarn("Numpify Stamp: {}".format(rospy.Time.now().to_sec()))
+
+    ## Frame Transform
+    # Transform the pointcloud into base_link frame
+    sc_points = np.concatenate(
+                  [points.transpose(),
+                  np.ones((1,points.shape[0]))],
+                  axis=0)
+    base_frame_points = np.linalg.multi_dot(
+                    [sc_obj.A_FP_SC, track_obj.res_roll_A,
+                    track_obj.res_pitch_A, track_obj.res_yaw_A,
+                    sc_points])
+    points = base_frame_points[0:3,:].transpose()
+
+    # rospy.logwarn("Transform Stamp: {}".format(rospy.Time.now().to_sec()))
+
+    # rospy.logwarn("CALLBACK 1!")
+    ## RGB filtering
     if 'rgb' in pc.dtype.fields:
-        points_rgb = pc['rgb']
+        points_rgb = pc['rgb'].flatten()
         pc_rgb = rnp.point_cloud2.split_rgb_field(pc)
 
         if pc_rgb['r'].shape[0] > 0:
@@ -118,32 +152,42 @@ def structure_callback( ros_cloud, args ):
             # pdb.set_trace()
             if COLOR_FILTER==1:
                 # Finding common indices
-                ind_r = np.intersect1d(np.where(pc_rgb['r'] > 160)[0], np.where(pc_rgb['r'] < 250)[0])
-                ind_g = np.intersect1d(np.where(pc_rgb['g'] > 40)[0], np.where(pc_rgb['g'] < 125)[0])
-                ind_b = np.intersect1d(np.where(pc_rgb['b'] > 40)[0], np.where(pc_rgb['b'] < 125)[0])
+                ind_r = np.intersect1d(np.where(pc_rgb['r'].flatten() > 160)[0], np.where(pc_rgb['r'].flatten() < 250)[0])
+                ind_g = np.intersect1d(np.where(pc_rgb['g'].flatten() > 40)[0], np.where(pc_rgb['g'].flatten() < 125)[0])
+                ind_b = np.intersect1d(np.where(pc_rgb['b'].flatten() > 40)[0], np.where(pc_rgb['b'].flatten() < 125)[0])
                 ind = np.intersect1d(np.intersect1d(ind_r, ind_g), ind_b)
                 points = points[ind,:]
                 points_rgb = points_rgb[ind]
             if COLOR_FILTER==2:
                 # Finding common indices
-                ind_r = np.intersect1d(np.where(pc_rgb['r'] > 150)[0], np.where(pc_rgb['r'] < 250)[0])
-                ind_g = np.intersect1d(np.where(pc_rgb['g'] > 50)[0], np.where(pc_rgb['g'] < 100)[0])
-                ind_b = np.intersect1d(np.where(pc_rgb['b'] > 40)[0], np.where(pc_rgb['b'] < 100)[0])
+                ind_r = np.intersect1d(np.where(pc_rgb['r'].flatten() > 150)[0], np.where(pc_rgb['r'].flatten() < 250)[0])
+                ind_g = np.intersect1d(np.where(pc_rgb['g'].flatten() > 50)[0], np.where(pc_rgb['g'].flatten() < 100)[0])
+                ind_b = np.intersect1d(np.where(pc_rgb['b'].flatten() > 40)[0], np.where(pc_rgb['b'].flatten() < 100)[0])
                 ind = np.intersect1d(np.intersect1d(ind_r, ind_g), ind_b)
                 points = points[ind,:]
                 points_rgb = points_rgb[ind]
 
+    # rospy.logwarn("RGB Filter Stamp: {}".format(rospy.Time.now().to_sec()))
+
+    # rospy.logwarn("CALLBACK 2!")
     # pdb.set_trace()
-    # Filter out some points that exceed spatial limit
-    # ball_points = points[points[:,1]>y_neg_lim,:]
-    # ball_points = ball_points[ball_points[:,1]<y_pos_lim,:]
-    # ball_points = ball_points[ball_points[:,2]>z_neg_lim,:]
-    # ball_points = ball_points[ball_points[:,2]<z_pos_lim,:]
-    # Only count the points when sc capture enough (15+) points
+    ## Passthrough filter
+    if PASSTHROUGH:
+        ind_x = np.intersect1d(np.where(points[:,0] > x_neg_lim)[0], np.where(points[:,0] < x_pos_lim)[0])
+        ind_y = np.intersect1d(np.where(points[:,1] > y_neg_lim)[0], np.where(points[:,1] < y_pos_lim)[0])
+        ind_z = np.intersect1d(np.where(points[:,2] > z_neg_lim)[0], np.where(points[:,2] < z_pos_lim)[0])
+        ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
+        points = points[ind,:]
+        points_rgb = points_rgb[ind]
+
+    ## Only count the points when sc capture enough (15+) points
     if(points.shape[0]<15):
         return
     
-    # Outlier rejection
+    # rospy.logwarn("Passthrough Stamp: {}".format(rospy.Time.now().to_sec()))
+
+    # rospy.logwarn("CALLBACK 3!")
+    ## Outlier rejection
     if OUTLIER_REJECT:
         x_mean = np.mean(points[:,0])
         y_mean = np.mean(points[:,1])
@@ -158,18 +202,9 @@ def structure_callback( ros_cloud, args ):
         points = points[ind,:]
         points_rgb = points_rgb[ind]
         
-
-    # Transform the pointcloud into base_link frame
-    sc_points = np.concatenate(
-                  [points.transpose(),
-                  np.ones((1,points.shape[0]))],
-                  axis=0)
-    base_frame_points = np.linalg.multi_dot(
-                    [sc_obj.A_FP_SC, track_obj.res_roll_A,
-                    track_obj.res_pitch_A, track_obj.res_yaw_A,
-                    sc_points])
-    points = base_frame_points[0:3,:].transpose()
+    # rospy.logwarn("Outliter reject Stamp: {}".format(rospy.Time.now().to_sec()))
     ball_position = np.mean(points, axis=0)
+    # rospy.logwarn("CALLBACK 3!")
     # Save data into data structure in object
     sc_obj.ball_time_estimates.append(ros_cloud.header.stamp.to_sec())
     sc_obj.ball_position_estimates_base.append(ball_position)
@@ -181,6 +216,7 @@ def structure_callback( ros_cloud, args ):
           ros_cloud.header.stamp.to_sec())
     # If collected more than 5 points, mark projectile as computed
     # for structure core
+    # rospy.logwarn("Finish Stamp: {}".format(rospy.Time.now().to_sec()))
     if len(sc_obj.ball_position_estimates_base) >= NUM_FRAME and not\
             sc_obj.projectile_computed:
         print("=============STRUCTURE CORE===========================",
@@ -226,10 +262,14 @@ class TrackBall( object ) :
         self.roll_offset = 0.0
         self.pitch_offset = 0.0
         self.yaw_offset = 0.0
-        # self.x_pos_lim = self.x_cen + self.x_width/2.0
-        # self.x_neg_lim = self.x_cen - self.x_width/2.0
-        # self.y_pos_lim = self.y_cen + self.y_width/2.0
-        # self.y_neg_lim = self.y_cen - self.y_width/2.0
+        # This is not the cleanest way to do it
+        # But bounding_box_visual is built depending on zed_filter.launch node
+        self.x_pos_lim = rospy.get_param("/zed_filtered_x/filter_limit_max")
+        self.x_neg_lim = rospy.get_param("/zed_filtered_x/filter_limit_min")
+        self.y_pos_lim = rospy.get_param("/zed_filtered_y/filter_limit_max")
+        self.y_neg_lim = rospy.get_param("/zed_filtered_y/filter_limit_min")
+        self.z_pos_lim = rospy.get_param("/zed_filtered/filter_limit_max")
+        self.z_neg_lim = rospy.get_param("/zed_filtered/filter_limit_min")
         self.res_yaw_A = np.eye(4)
         self.res_pitch_A = np.eye(4)
         self.res_roll_A = np.eye(4)
@@ -370,6 +410,7 @@ class TrackBall( object ) :
 
         if publish_pmsg:
             pmsg.publish(projectile_msg)
+            rospy.logwarn("Publishing projectile!")
             print(projectile_msg)
         # Time elapsed
         t2 = rospy.Time.now()
@@ -465,11 +506,16 @@ class TrackBall( object ) :
         # self.ki_sess.ki_find_FP()
 
         if METHOD_ID == 0:
-            ## Using bounding box
+            ## Using bounding box - pcl_passthrough node
             rospy.Subscriber("/zed_filtered/output", PointCloud2,
                             structure_callback,
                             callback_args=(self,self.sc_sess),
                             queue_size=10)
+            ## Subscribing directly, then passthrough ourselves
+            # rospy.Subscriber("/zed2i/zed_nodelet/point_cloud/cloud_registered", PointCloud2,
+            #                 structure_callback,
+            #                 callback_args=(self,self.sc_sess),
+            #                 queue_size=10)
         elif METHOD_ID == 1:
             ## Using Color filtering
             rospy.Subscriber("/zed2i/filtered_point_cloud", PointCloud2,
@@ -516,20 +562,22 @@ class TrackBall( object ) :
         # Start of the loop with loop control variable process_sc
         process_sc = True
         while not rospy.is_shutdown():
+            # rospy.logwarn("Checking rate")
             # When projectile is computed
             if self.sc_sess.projectile_computed and process_sc:
-                t1 = rospy.Time.now()
+                # t1 = rospy.Time.now()
+                rospy.logwarn("Entering Filtering!")
                 self.sc_sess.sc_filter( self )
-                t2 = rospy.Time.now()
+                rospy.logwarn("Computing Projectile!")
                 self.compute_projectile_2(
                     self.sc_sess.ball_position_estimates,
                     self.sc_sess.ball_time_estimates_filtered,
                     self.sc_sess.projectile_msg_pub,
                     self.sc_sess.projectile_marker_pub)
                 process_sc = False
-                print("Structure CORE TimeSTAMPS",
-                      self.sc_sess.ball_time_estimates, "time diff",
-                      (t2-t1).to_sec()*1000, t1.to_sec())
+                # print("Structure CORE TimeSTAMPS",
+                #       self.sc_sess.ball_time_estimates, "time diff",
+                #       (t2-t1).to_sec()*1000, t1.to_sec())
                 
                 # Visualization - Publish the points used to calculate probalo
                 self.visualize_projectile_points(
@@ -606,23 +654,26 @@ class SCSession ( object ):
         # Find tf (transform) listener
         while not tf_found:
             try:
-                if METHOD_ID == 0:
-                    # Transform is no longer needed because it's been done
-                    # in passthrough filering
-                    (tf_trans,tf_rot) = tf_listener.lookupTransform(
-                                        "/base_link",
-                                        "/base_link",
-                                        rospy.Time(0))
-                elif METHOD_ID == 1:
+                    if METHOD_ID == 0:
+                        # Transform is no longer needed because it's been done
+                        # in passthrough filering
+                        (tf_trans,tf_rot) = tf_listener.lookupTransform(
+                                            "/base_link",
+                                            "/base_link",
+                                            rospy.Time(0))
+                        
+                    elif METHOD_ID == 1:
                     # Look for trans and rot for zed2i_camera_center
                     # from base_link
-                    (tf_trans,tf_rot) = tf_listener.lookupTransform(
-                                        "/base_link",
-                                        "/zed2i_left_camera_frame",
-                                        rospy.Time(0))
-                print("translation ", tf_trans)
-                print("rotation ", tf_rot)
-                tf_found = True
+
+                # Transform is needed if we are doing manual passthrough
+                        (tf_trans,tf_rot) = tf_listener.lookupTransform(
+                                            "/base_link",
+                                            "/zed2i_left_camera_frame",
+                                            rospy.Time(0))
+                    print("translation ", tf_trans)
+                    print("rotation ", tf_rot)
+                    tf_found = True
             except Exception as e:
                 print("TF not found", e)
             rate.sleep()
