@@ -38,8 +38,6 @@ finish_stamp = 0
 pc_xyz_list = []
 pc_rgb_list = []
 
-# TODO: 
-# - Fix point cloud 'rgb' field, currently it's bgr, not rgb
 
 ##########################################################################
 #############################Function#####################################
@@ -106,9 +104,11 @@ def visualize_collected_pc( pc_list, pc_rgb_list, pub ):
     pc_rgb_all = np.zeros((0,1))
     for i in range(len(pc_list)):
         pc_all = np.vstack((pc_all, np.array(pc_list[i])))            
-        # pdb.set_trace()
-        pc_rgb_all = np.vstack((pc_rgb_all, np.array(pc_rgb_list[i]).reshape(-1,1)))
 
+        # Convert BGR to RGB
+        pc_rgb = np.array(pc_rgb_list[i]).reshape(-1, 3)[:, [2, 1, 0]]
+        pc_rgb_all = np.vstack((pc_rgb_all, pc_rgb.reshape(-1, 3)))
+        
     # Publishing
     filtered_msg = xyzrgb_array_to_pointcloud2(
                 pc_all,
@@ -116,6 +116,7 @@ def visualize_collected_pc( pc_list, pc_rgb_list, pub ):
                 rospy.Time.now(),
                 "odom_combined")
     pub.publish(filtered_msg)
+
 ##########################################################################
 ## Projectile Estimation
 # Define the mathematical model for the trajectory
@@ -273,6 +274,14 @@ def main():
             if pc_xyz_poi.shape[0] < MIN_PIXEL:
                 continue
 
+            # Define the boundaries of the virtual bounding box
+            bbox_x_min = 1.0  
+            bbox_x_max = 4.0   
+            bbox_y_min = -2.0 
+            bbox_y_max = 2.0  
+            bbox_z_min = 0.0
+            bbox_z_max = 2.8
+
             # Calculate the mean of the depth
             mean_X = np.mean(pc_xyz_poi[:,0])
             mean_Y = np.mean(pc_xyz_poi[:,1])
@@ -281,21 +290,27 @@ def main():
             if DEBUG:
                 print("Mean Depth: {}".format(mean_X))
 
-            if mean_X != 0 and mean_X < DIST_THRESHOLD:
-                # Record Time stamps
-                count = count + 1
-                if count == 1:
-                    t = 0.0
-                    stamps.append(stamp_temp)
-                else:
-                    t = stamp_temp-stamps[0]
-                    stamps.append(stamp_temp)
+            # Check if the point is inside the bounding box
+            if bbox_x_min <= mean_X <= bbox_x_max and \
+               bbox_y_min <= mean_Y <= bbox_y_max and \
+               bbox_z_min <= mean_Z <= bbox_z_max:
+                # Point is inside the bounding box, process it
+            
+                if mean_X != 0 and mean_X < DIST_THRESHOLD and mean_Conf < 50:
+                    # Record Time stamps
+                    count = count + 1
+                    if count == 1:
+                        t = 0.0
+                        stamps.append(stamp_temp)
+                    else:
+                        t = stamp_temp-stamps[0]
+                        stamps.append(stamp_temp)
 
-                # Storing Data
-                print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}, Conf: {:.3f}".format(t, mean_X, mean_Y, mean_Z, mean_Conf))
-                measurements.append((t, mean_X, mean_Y, mean_Z))
-                pc_xyz_list.append(pc_xyz_poi)
-                pc_rgb_list.append(pc_rgb_poi)
+                    # Storing Data
+                    print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}, Conf: {:.3f}".format(t, mean_X, mean_Y, mean_Z, mean_Conf))
+                    measurements.append((t, mean_X, mean_Y, mean_Z))
+                    pc_xyz_list.append(pc_xyz_poi)
+                    pc_rgb_list.append(pc_rgb_poi)
 
             # Collected Enough Points
             if count >= Num_Frame:
