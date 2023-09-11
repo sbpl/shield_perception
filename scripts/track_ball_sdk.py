@@ -23,9 +23,9 @@ OUTLIER_REJECT=1
 DIST_THRESHOLD=5
 MIN_PIXEL=30
 PUBLISH_PROJ=1
-COLOR_DETECTION=1
-BOUNDING_BOX=0
-DEBUG=0
+METHOD_ID=2         #0 = native bounding box, 1 = color detection, 2 = open3d bounding box
+DEBUG=1
+VISUAL=0
 
 # min_radius = 1  # Minimum radius of the ball
 # max_radius = 30  # Maximum radius of the ball
@@ -154,7 +154,10 @@ def estimate_trajectory(measurements):
 
 def main():
     # Setup ROS publishers
-    rospy.init_node('track_ball_sdk')
+    if DEBUG:
+        rospy.init_node('track_ball_sdk', log_level=rospy.DEBUG)
+    else:
+        rospy.init_node('track_ball_sdk')
     pc_pub = rospy.Publisher('/sc/rgbd/filtered_points',
                             PointCloud2,
                             queue_size = 1)
@@ -209,7 +212,7 @@ def main():
             stamp_temp = rospy.Time.now().to_sec()
             i = i + 1
             fps = zed.get_current_fps()
-            print("Frame Rate: {} FPS".format(fps))
+            rospy.loginfo("Frame Rate: {} FPS".format(fps))
 
             # Retrieving Data
             zed.retrieve_image(image, sl.VIEW.LEFT)
@@ -219,9 +222,53 @@ def main():
             pc_xyz_np = point_cloud.get_data()[:,:,:3]
             pc_rgb_np = point_cloud.get_data()[:,:,3]
             confidence_np = confidence_map.get_data()
+            ## stamp 1: after retrieving data
+            stamp_1 = rospy.Time.now().to_sec()
+
+            if DEBUG:
+                rospy.logdebug("TIME SPENT IN RETRIEVING: {}".format(stamp_1-stamp_temp))
+
             
-            # Color Detection Method
-            if COLOR_DETECTION:
+            # Detection Method:
+            '''
+            Input: point cloud as np array (ROW x COL x 3), Left cam image
+            Output: poi of pointclouds and confidence
+            '''
+            # Setting up spatial limit
+            x_neg_lim = 1.0
+            x_pos_lim = 4.5
+            y_neg_lim = -2.0
+            y_pos_lim = 2.0
+            z_neg_lim = 0.0
+            z_pos_lim = 2.8
+            if METHOD_ID == 0:
+                # Reshape
+                confidence_poi_all = confidence_np.reshape((-1,1))
+                pc_xyz_poi_all = pc_xyz_np.reshape((-1,3))
+                pc_rgb_poi_all = pc_rgb_np.reshape((-1,1))
+                valid_ind = np.logical_not(np.isnan(pc_xyz_poi_all[:,0]))
+
+                # Throw out NAN
+                confidence_poi = confidence_poi_all[valid_ind,:]
+                pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
+                pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
+
+                # TF
+                pc_xyz_poi = np.dot(T_BASE_TO_LEFT, np.append(pc_xyz_poi, np.ones((pc_xyz_poi.shape[0],1)), axis=1).transpose())[0:3,:].transpose()
+
+                # Passthrough filter
+                ind_x = np.intersect1d(np.where(pc_xyz_poi[:,0] > x_neg_lim)[0], np.where(pc_xyz_poi[:,0] < x_pos_lim)[0])
+                ind_y = np.intersect1d(np.where(pc_xyz_poi[:,1] > y_neg_lim)[0], np.where(pc_xyz_poi[:,1] < y_pos_lim)[0])
+                ind_z = np.intersect1d(np.where(pc_xyz_poi[:,2] > z_neg_lim)[0], np.where(pc_xyz_poi[:,2] < z_pos_lim)[0])
+                filtered_ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
+
+                # Output
+                confidence_poi = confidence_poi_all[filtered_ind,:]
+                pc_xyz_poi = pc_xyz_poi_all[filtered_ind,:]
+                pc_rgb_poi = pc_rgb_poi_all[filtered_ind,:]
+
+
+            elif METHOD_ID == 1:
                 # Convert ZED Mat objects to numpy arrays
                 image_ocv = image.get_data()
                 hsv_image = cv2.cvtColor(image_ocv, cv2.COLOR_BGR2HSV)
@@ -235,7 +282,7 @@ def main():
                 where = np.where(mask == 255)
 
                 # DEBUG: Visualize masked image
-                if DEBUG:
+                if VISUAL:
                     image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
                     cv2.namedWindow('image1')
                     cv2.imshow("image1", image_masked)
@@ -253,6 +300,27 @@ def main():
                 pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
                 # TF
                 pc_xyz_poi = np.dot(T_BASE_TO_LEFT, np.append(pc_xyz_poi, np.ones((pc_xyz_poi.shape[0],1)), axis=1).transpose())[0:3,:].transpose()
+
+            elif METHOD_ID == 2:
+                # Reshape
+                confidence_poi_all = confidence_np.reshape((-1,1))
+                pc_xyz_poi_all = pc_xyz_np.reshape((-1,3))
+                pc_rgb_poi_all = pc_rgb_np.reshape((-1,1))
+                valid_ind = np.logical_not(np.isnan(pc_xyz_poi_all[:,0]))
+
+                # Throw out NAN
+                # confidence_poi = confidence_poi_all[valid_ind,:]
+                # pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
+                # pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
+
+            
+            ## stamp 2: after detection method
+            stamp_2 = rospy.Time.now().to_sec()
+
+            if DEBUG:
+                rospy.logdebug("TIME SPENT IN DETECTION:  {}".format(stamp_2-stamp_1))
+
+            # continue
 
             # Outlier rejection
             if OUTLIER_REJECT:
