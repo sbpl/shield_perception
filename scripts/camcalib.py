@@ -25,7 +25,7 @@ from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryG
 sim = False
 
 # model
-model_dir = '/home/shield/code/parallel_search/third_party/mujoco-2.3.2/model/abb/irb_1600/'
+model_dir = '/home/shield/scratch/parallel_search/third_party/mujoco-2.3.2/model/abb/irb_1600/'
 mjcf = 'irb1600_6_12_camcalib.xml'
 
 # viewer params
