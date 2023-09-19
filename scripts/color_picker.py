@@ -19,7 +19,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),"camera_
 from helpers import *
 from constants import *
 
-COUNT=1
+COUNT=0
 
 def main():
     # Load image from file

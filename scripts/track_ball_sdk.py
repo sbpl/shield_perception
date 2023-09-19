@@ -306,11 +306,16 @@ def main():
                 hsv_image = cv2.cvtColor(image_ocv, cv2.COLOR_BGR2HSV)
 
                 # Define the adjusted range for bright orange color in HSV
-                lower_bound = np.array([5, 75, 100])
-                upper_bound = np.array([30, 255, 255])
+                lower_bound_orange = np.array([5, 75, 100])
+                upper_bound_orange = np.array([30, 255, 255])
+                # Define the adjusted range for green color in HSV
+                lower_bound_green = np.array([50, 75, 100])
+                upper_bound_green = np.array([85, 255, 255])
 
                 # Create a binary mask for orange color in HSV
-                mask = cv2.inRange(hsv_image, lower_bound, upper_bound)
+                mask_orange = cv2.inRange(hsv_image, lower_bound_orange, upper_bound_orange)
+                mask_green = cv2.inRange(hsv_image, lower_bound_green, upper_bound_green)
+                mask = mask_orange + mask_green
                 where = np.where(mask == 255)
 
                 # DEBUG: Visualize masked image
