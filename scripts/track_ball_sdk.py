@@ -3,13 +3,15 @@ import cv2
 import numpy as np
 # import open3d as o3d
 import os
+import pickle
 import pyzed.sl as sl
 import rospy
 from scipy.optimize import least_squares
 from sensor_msgs.msg import PointCloud2, PointField
 from shield_planner_msgs.msg import Projectile
 import std_msgs.msg
-import sys
+import sys, signal
+import time
 from visualization_msgs.msg import MarkerArray, Marker
 
 import pdb
@@ -28,14 +30,15 @@ PUBLISH_PROJ=1
 METHOD_ID=1         #0 = native bounding box (aborted), 1 = color detection, 2 = open3d bounding box (aborted)
 DEBUG=0
 VISUAL=0
-SAVE_IMG=0
-RES=1
+SAVE_IMG=0  
+RES=0 # 0 - VGA, 1 - 720p
+LIGHT_CONDITION=3   #0 = no lights, 1 = cam lights, 2 = left lights, 3 = ceil lights, 4 = cam + ceil, 5 = left + ceil
 
 # min_radius = 1  # Minimum radius of the ball
 # max_radius = 30  # Maximum radius of the ball
 
 # Global Vars
-Num_Frame = 5
+Num_Frame = 8
 measurements = []
 stamps = []
 finish_stamp = 0
@@ -156,10 +159,19 @@ def estimate_trajectory(measurements):
     return (x0, y0, z0, vx0, vy0, vz0)
 
 ##########################################################################
+## Sig int
+def signal_handler(signal, frame):
+    print("\nprogram exiting!")
+    sys.exit(0)
+
+##########################################################################
 ##########################################################################
 ## Working Main
 
 def main():
+    # Signal handler
+    signal.signal(signal.SIGINT, signal_handler)
+
     # Setup ROS publishers
     if DEBUG:
         rospy.init_node('track_ball_sdk', log_level=rospy.DEBUG)
@@ -201,6 +213,30 @@ def main():
         zed.close()
         exit(1)
 
+    # cam_sets = {}
+    # # Load cam setting from pkl for different light conditions
+    # if LIGHT_CONDITION == 0:
+    #     with open('./camera_calibration/cam_settings_data/lights_off.pickle', "rb") as cam_set_file:
+    #         cam_sets = pickle.load(cam_set_file)
+    # if LIGHT_CONDITION == 1:
+    #     with open('./camera_calibration/cam_settings_data/lights_cam.pickle', "rb") as cam_set_file:
+    #         cam_sets = pickle.load(cam_set_file)
+    # if LIGHT_CONDITION == 2:
+    #     with open('./camera_calibration/cam_settings_data/lights_left.pickle', "rb") as cam_set_file:
+    #         cam_sets = pickle.load(cam_set_file)
+    # if LIGHT_CONDITION == 3:
+    #     with open('./camera_calibration/cam_settings_data/lights_ceil.pickle', "rb") as cam_set_file:
+    #         cam_sets = pickle.load(cam_set_file)
+    # if LIGHT_CONDITION == 4:
+    #     with open('./camera_calibration/cam_settings_data/lights_cam_ceil.pickle', "rb") as cam_set_file:
+    #         cam_sets = pickle.load(cam_set_file)
+    # if LIGHT_CONDITION == 5:
+    #     with open('./camera_calibration/cam_settings_data/lights_left_ceil.pickle', "rb") as cam_set_file:
+    #         cam_sets = pickle.load(cam_set_file)
+    
+    # for s in cam_sets:
+    #     zed.set_camera_settings(s, cam_sets[s])
+
     # Create and set RuntimeParameters after opening the camera
     runtime_parameters = sl.RuntimeParameters()
     runtime_parameters.confidence_threshold = 100
@@ -218,312 +254,330 @@ def main():
     if SAVE_IMG:
         img_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),"camera_calibration/color_data/")
 
-    while i < 500:
-        #A new image is available if grab() returns SUCCESS
-        if zed.grab(runtime_parameters) == sl.ERROR_CODE.SUCCESS:
+    try:
+        while 1:
+            #A new image is available if grab() returns SUCCESS
+            if zed.grab(runtime_parameters) == sl.ERROR_CODE.SUCCESS:
 
-            # Time Stamps of getting the Frame
-            stamp_temp = rospy.Time.now().to_sec()
-            i = i + 1
-            fps = zed.get_current_fps()
-            # rospy.loginfo("Frame Rate: {} FPS".format(fps))
-            print("FRAMERATE: {} FPS".format(fps))
+                # Time Stamps of getting the Frame
+                stamp_temp = rospy.Time.now().to_sec()
+                i = i + 1
+                fps = zed.get_current_fps()
+                # rospy.loginfo("Frame Rate: {} FPS".format(fps))
+                if fps < 50:
+                    rospy.logerr("!!FRAMERATE!!: {} FPS".format(fps))
 
-            # continue
+                # continue
 
-            # Retrieving Data
-            zed.retrieve_image(image, sl.VIEW.LEFT)
-            zed.retrieve_measure(point_cloud, sl.MEASURE.XYZRGBA)
-            zed.retrieve_measure(confidence_map, sl.MEASURE.CONFIDENCE)
+                # Retrieving Data
+                zed.retrieve_image(image, sl.VIEW.LEFT)
+                zed.retrieve_measure(point_cloud, sl.MEASURE.XYZRGBA)
+                zed.retrieve_measure(confidence_map, sl.MEASURE.CONFIDENCE)
 
-            # Turning Data into np array
-            pc_xyz_np = point_cloud.get_data()[:,:,:3]
-            pc_rgb_np = point_cloud.get_data()[:,:,3]
-            confidence_np = confidence_map.get_data()
-
-            # continue
-            ## stamp 1: after retrieving data
-            # stamp_1 = rospy.Time.now().to_sec()
-
-            if DEBUG:
-                rospy.logdebug("TIME SPENT IN RETRIEVING: {}".format(stamp_1-stamp_temp))
-
-            
-            # Detection Method:
-            '''
-            Input: point cloud as np array (ROW x COL x 3), Left cam image
-            Output: poi of pointclouds and confidence
-            '''
-            # Setting up spatial limit
-            # Define the boundaries of the virtual bounding box
-            bbox_x_min = 0.8  
-            bbox_x_max = DIST_THRESHOLD 
-            bbox_y_min = -2.0 
-            bbox_y_max = 2.0  
-            bbox_z_min = 0.0
-            bbox_z_max = 2.8
-            # x_neg_lim = 1.0
-            # x_pos_lim = 4.5
-            # y_neg_lim = -2.0
-            # y_pos_lim = 2.0
-            # z_neg_lim = 0.0
-            # z_pos_lim = 2.8
-            if METHOD_ID == 0:
-                continue
-                # Reshape
-                # confidence_poi_all = confidence_np.reshape((-1,1))
-                # pc_xyz_poi_all = pc_xyz_np.reshape((-1,3))
-                # pc_rgb_poi_all = pc_rgb_np.reshape((-1,1))
-                # valid_ind = np.logical_not(np.isnan(pc_xyz_np[:,:,0]))
-
-                # pdb.set_trace()
-
-                # Throw out NAN
-                # confidence_poi = confidence_np[valid_ind]
-                # pc_xyz_poi = pc_xyz_np[valid_ind,:]
-                # pc_rgb_poi = pc_rgb_np[valid_ind]
-                # confidence_poi = confidence_poi_all[valid_ind,:]
-                # pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
-                # pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
-
-                # TF
-                # pc_xyz_poi = np.dot(T_BASE_TO_LEFT, np.append(pc_xyz_poi, np.ones((pc_xyz_poi.shape[0],1)), axis=1).transpose())[0:3,:].transpose()
-
-                # # Passthrough filter
-                # ind_x = np.intersect1d(np.where(pc_xyz_poi[:,0] > bbox_x_min)[0], np.where(pc_xyz_poi[:,0] < bbox_x_max)[0])
-                # ind_y = np.intersect1d(np.where(pc_xyz_poi[:,1] > bbox_y_min)[0], np.where(pc_xyz_poi[:,1] < bbox_y_max)[0])
-                # ind_z = np.intersect1d(np.where(pc_xyz_poi[:,2] > bbox_z_min)[0], np.where(pc_xyz_poi[:,2] < bbox_z_max)[0])
-                # filtered_ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
-
-                # # Output
-                # confidence_poi = confidence_poi[filtered_ind,:]
-                # pc_xyz_poi = pc_xyz_poi[filtered_ind,:]
-                # pc_rgb_poi = pc_rgb_poi[filtered_ind,:]
-
-            elif METHOD_ID == 1:
-                # Convert ZED Mat objects to numpy arrays
-                image_ocv = image.get_data()
-                hsv_image = cv2.cvtColor(image_ocv, cv2.COLOR_BGR2HSV)
-
-                # Define the adjusted range for bright orange color in HSV
-                lower_bound_orange = np.array([5, 75, 100])
-                upper_bound_orange = np.array([30, 255, 255])
-                # Define the adjusted range for green color in HSV
-                lower_bound_green = np.array([50, 75, 100])
-                upper_bound_green = np.array([85, 255, 255])
-
-                # Create a binary mask for orange color in HSV
-                mask_orange = cv2.inRange(hsv_image, lower_bound_orange, upper_bound_orange)
-                mask_green = cv2.inRange(hsv_image, lower_bound_green, upper_bound_green)
-                mask = mask_orange + mask_green
-                where = np.where(mask == 255)
-
-                # DEBUG: Visualize masked image
-                if VISUAL:
-                    image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
-                    cv2.namedWindow('image1')
-                    cv2.imshow("image1", image_masked)
-                    cv2.waitKey(1)
-
-                # Masked PC and Confidence
-                confidence_poi_all = confidence_np[where[0], where[1]].reshape((-1,1))
-                pc_xyz_poi_all = pc_xyz_np[where[0], where[1], :].reshape((-1,3))
-                pc_rgb_poi_all = pc_rgb_np[where[0], where[1]].reshape((-1,1))
-                valid_ind = np.logical_not(np.isnan(pc_xyz_poi_all[:,0]))
-
-                # Throw out NAN
-                confidence_poi = confidence_poi_all[valid_ind,:]
-                pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
-                pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
-                # TF
-                pc_xyz_poi = np.dot(T_BASE_TO_LEFT, np.append(pc_xyz_poi, np.ones((pc_xyz_poi.shape[0],1)), axis=1).transpose())[0:3,:].transpose()
-
-            elif METHOD_ID == 2:
-                continue
-                # # Reshape
-                # confidence_poi_all = confidence_np.reshape((-1,1))
-                # pc_xyz_poi_all = pc_xyz_np.reshape((-1,3))
-                # pc_rgb_poi_all = pc_rgb_np.reshape((-1,1))
-
-                # # Open3d pointcloud processing
-                # pcd = o3d.geometry.PointCloud()
-                # pcd.points = o3d.utility.Vector3dVector(pc_xyz_poi_all)
-                # bounds = [[bbox_x_min, bbox_x_max], [bbox_y_min, bbox_y_max], [bbox_z_min, bbox_z_max]]
+                # continue
+                # Turning Data into np array
+                pc_xyz_np = point_cloud.get_data()[:,:,:3]
+                pc_rgb_np = point_cloud.get_data()[:,:,3]
+                confidence_np = confidence_map.get_data()
                 
-                # # TODO: Aborting. This is taking too long
+                if DEBUG:
+                    # continue
+                    # stamp 1: after retrieving data
+                    stamp_1 = rospy.Time.now().to_sec()
 
-                # # Reshape
-                # # confidence_poi_all = confidence_np
-                # # pc_xyz_poi_all = pc_xyz_np
-                # # pc_rgb_poi_all = pc_rgb_np
-                # # valid_ind = np.logical_not(np.isnan(pc_xyz_poi_all[:,0]))
+                if DEBUG:
+                    rospy.logdebug("TIME SPENT IN RETRIEVING: {}".format(stamp_1-stamp_temp))
 
-                # # Throw out NAN
-                # # confidence_poi = confidence_poi_all[valid_ind,:]
-                # # pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
-                # # pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
+                
+                # Detection Method:
+                '''
+                Input: point cloud as np array (ROW x COL x 3), Left cam image
+                Output: poi of pointclouds and confidence
+                '''
+                # Setting up spatial limit
+                # Define the boundaries of the virtual bounding box
+                bbox_x_min = 0.8  
+                bbox_x_max = DIST_THRESHOLD 
+                bbox_y_min = -2.0 
+                bbox_y_max = 2.0  
+                bbox_z_min = 0.0
+                bbox_z_max = 2.8
+                # x_neg_lim = 1.0
+                # x_pos_lim = 4.5
+                # y_neg_lim = -2.0
+                # y_pos_lim = 2.0
+                # z_neg_lim = 0.0
+                # z_pos_lim = 2.8
+                if METHOD_ID == 0:
+                    continue
+                    # Reshape
+                    # confidence_poi_all = confidence_np.reshape((-1,1))
+                    # pc_xyz_poi_all = pc_xyz_np.reshape((-1,3))
+                    # pc_rgb_poi_all = pc_rgb_np.reshape((-1,1))
+                    # valid_ind = np.logical_not(np.isnan(pc_xyz_np[:,:,0]))
 
-            
-            ## stamp 2: after detection method
-            # stamp_2 = rospy.Time.now().to_sec()
+                    # pdb.set_trace()
 
-            if DEBUG:
-                rospy.logdebug("TIME SPENT IN DETECTION:  {}".format(stamp_2-stamp_1))
+                    # Throw out NAN
+                    # confidence_poi = confidence_np[valid_ind]
+                    # pc_xyz_poi = pc_xyz_np[valid_ind,:]
+                    # pc_rgb_poi = pc_rgb_np[valid_ind]
+                    # confidence_poi = confidence_poi_all[valid_ind,:]
+                    # pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
+                    # pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
 
-            # Bounding box filtering
-            if BOUNDING_FILTER:
-                # Throw out the pc that's not in the spatial limit
-                ind_x = np.intersect1d(np.where(pc_xyz_poi[:,0] > bbox_x_min)[0], np.where(pc_xyz_poi[:,0] < bbox_x_max)[0])
-                ind_y = np.intersect1d(np.where(pc_xyz_poi[:,1] > bbox_y_min)[0], np.where(pc_xyz_poi[:,1] < bbox_y_max)[0])
-                ind_z = np.intersect1d(np.where(pc_xyz_poi[:,2] > bbox_z_min)[0], np.where(pc_xyz_poi[:,2] < bbox_z_max)[0])
-                filtered_ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
+                    # TF
+                    # pc_xyz_poi = np.dot(T_BASE_TO_LEFT, np.append(pc_xyz_poi, np.ones((pc_xyz_poi.shape[0],1)), axis=1).transpose())[0:3,:].transpose()
 
-                pc_xyz_poi = pc_xyz_poi[filtered_ind,:]
-                pc_rgb_poi = pc_rgb_poi[filtered_ind,:]
-                confidence_poi = confidence_poi[filtered_ind,:]
+                    # # Passthrough filter
+                    # ind_x = np.intersect1d(np.where(pc_xyz_poi[:,0] > bbox_x_min)[0], np.where(pc_xyz_poi[:,0] < bbox_x_max)[0])
+                    # ind_y = np.intersect1d(np.where(pc_xyz_poi[:,1] > bbox_y_min)[0], np.where(pc_xyz_poi[:,1] < bbox_y_max)[0])
+                    # ind_z = np.intersect1d(np.where(pc_xyz_poi[:,2] > bbox_z_min)[0], np.where(pc_xyz_poi[:,2] < bbox_z_max)[0])
+                    # filtered_ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
 
+                    # # Output
+                    # confidence_poi = confidence_poi[filtered_ind,:]
+                    # pc_xyz_poi = pc_xyz_poi[filtered_ind,:]
+                    # pc_rgb_poi = pc_rgb_poi[filtered_ind,:]
 
-            # Outlier rejection
-            if OUTLIER_REJECT:
-                x_mean = np.mean(pc_xyz_poi[:,0])
-                y_mean = np.mean(pc_xyz_poi[:,1])
-                z_mean = np.mean(pc_xyz_poi[:,2])
-                x_std = np.std(pc_xyz_poi[:,0])
-                y_std = np.std(pc_xyz_poi[:,1])
-                z_std = np.std(pc_xyz_poi[:,2])
-                ind_x = np.intersect1d(np.where(pc_xyz_poi[:,0] > x_mean - 2*x_std)[0], np.where(pc_xyz_poi[:,0] < x_mean + 2*x_std)[0])
-                ind_y = np.intersect1d(np.where(pc_xyz_poi[:,1] > y_mean - 2*y_std)[0], np.where(pc_xyz_poi[:,1] < y_mean + 2*y_std)[0])
-                ind_z = np.intersect1d(np.where(pc_xyz_poi[:,2] > z_mean - 2*z_std)[0], np.where(pc_xyz_poi[:,2] < z_mean + 2*z_std)[0])
-                ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
-                pc_xyz_poi = pc_xyz_poi[ind,:]
-                pc_rgb_poi = pc_rgb_poi[ind,:]
-                confidence_poi = confidence_poi[ind,:]
+                elif METHOD_ID == 1:
+                    # Convert ZED Mat objects to numpy arrays
+                    image_ocv = image.get_data()
+                    hsv_image = cv2.cvtColor(image_ocv, cv2.COLOR_BGR2HSV)
 
-            ## stamp 3: after detection method
-            # stamp_3 = rospy.Time.now().to_sec()
+                    # Define the adjusted range for bright orange color in HSV
+                    lower_bound_orange = np.array([5, 75, 100])
+                    upper_bound_orange = np.array([30, 255, 255])
+                    # Define the adjusted range for green color in HSV
+                    lower_bound_green = np.array([50, 75, 100])
+                    upper_bound_green = np.array([85, 255, 255])
 
-            if DEBUG:
-                rospy.logdebug("TIME SPENT IN FILTERING:  {}".format(stamp_3-stamp_2))
+                    # Create a binary mask for orange color in HSV
+                    mask_orange = cv2.inRange(hsv_image, lower_bound_orange, upper_bound_orange)
+                    mask_green = cv2.inRange(hsv_image, lower_bound_green, upper_bound_green)
+                    mask = mask_orange + mask_green
+                    # mask = mask_orange
+                    where = np.where(mask == 255)
 
-            # Only continue if there are more than MIN_PIXEL points (30+)
-            if pc_xyz_poi.shape[0] < MIN_PIXEL:
-                continue
+                    # DEBUG: Visualize masked image
+                    if VISUAL:
+                        image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
+                        cv2.namedWindow('image1')
+                        cv2.imshow("image1", image_masked)
+                        cv2.waitKey(1)
 
-            # Calculate the mean of the depth
-            mean_X = np.mean(pc_xyz_poi[:,0])
-            mean_Y = np.mean(pc_xyz_poi[:,1])
-            mean_Z = np.mean(pc_xyz_poi[:,2])
-            mean_Conf = np.mean(confidence_poi[:])
-            if DEBUG:
-                print("Mean Depth: {}".format(mean_X))
+                    # Masked PC and Confidence
+                    confidence_poi_all = confidence_np[where[0], where[1]].reshape((-1,1))
+                    pc_xyz_poi_all = pc_xyz_np[where[0], where[1], :].reshape((-1,3))
+                    pc_rgb_poi_all = pc_rgb_np[where[0], where[1]].reshape((-1,1))
+                    valid_ind = np.logical_not(np.isnan(pc_xyz_poi_all[:,0]))
 
-            # Check if the point is inside the bounding box
-            # if bbox_x_min <= mean_X <= bbox_x_max and \
-            #    bbox_y_min <= mean_Y <= bbox_y_max and \
-            #    bbox_z_min <= mean_Z <= bbox_z_max:
-                # Point is inside the bounding box, process it
-            
-            if mean_X != 0 and mean_X < DIST_THRESHOLD:
-            # if mean_X != 0 and mean_X < DIST_THRESHOLD and mean_Conf < 50:
-                if SAVE_IMG:
-                    image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
-                    img_mk_path = img_path + "img_mk_" + str(count) + ".jpg"
-                    img_og_path = img_path + "img_og_" + str(count) + ".jpg"
-                    cv2.imwrite(img_mk_path, image_masked)
-                    cv2.imwrite(img_og_path, image_ocv)
+                    # Throw out NAN
+                    confidence_poi = confidence_poi_all[valid_ind,:]
+                    pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
+                    pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
+                    # TF
+                    pc_xyz_poi = np.dot(T_BASE_TO_LEFT, np.append(pc_xyz_poi, np.ones((pc_xyz_poi.shape[0],1)), axis=1).transpose())[0:3,:].transpose()
 
-                # Record Time stamps
-                count = count + 1
-                if count == 1:
-                    t = 0.0
-                    stamps.append(stamp_temp)
-                else:
-                    t = stamp_temp-stamps[0]
-                    stamps.append(stamp_temp)
+                elif METHOD_ID == 2:
+                    continue
+                    # # Reshape
+                    # confidence_poi_all = confidence_np.reshape((-1,1))
+                    # pc_xyz_poi_all = pc_xyz_np.reshape((-1,3))
+                    # pc_rgb_poi_all = pc_rgb_np.reshape((-1,1))
 
-                # Storing Data
-                print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}, Conf: {:.3f}".format(t, mean_X, mean_Y, mean_Z, mean_Conf))
-                measurements.append((t, mean_X, mean_Y, mean_Z))
-                pc_xyz_list.append(pc_xyz_poi)
-                pc_rgb_list.append(pc_rgb_poi)
+                    # # Open3d pointcloud processing
+                    # pcd = o3d.geometry.PointCloud()
+                    # pcd.points = o3d.utility.Vector3dVector(pc_xyz_poi_all)
+                    # bounds = [[bbox_x_min, bbox_x_max], [bbox_y_min, bbox_y_max], [bbox_z_min, bbox_z_max]]
+                    
+                    # # TODO: Aborting. This is taking too long
 
-            # Collected Enough Points
-            if count >= Num_Frame:
-                # Perform trajectory estimation here using the measurements
-                estimated_params = estimate_trajectory(measurements)
-                print(f"Estimated Parameters (XYZ,VxVyVz): \n{estimated_params}")
+                    # # Reshape
+                    # # confidence_poi_all = confidence_np
+                    # # pc_xyz_poi_all = pc_xyz_np
+                    # # pc_rgb_poi_all = pc_rgb_np
+                    # # valid_ind = np.logical_not(np.isnan(pc_xyz_poi_all[:,0]))
 
-                # Publish Projectile Msg            
-                projectile_msg = Projectile()
-                header = std_msgs.msg.Header()
-                header.stamp = rospy.Time.now()
-                header.frame_id = 'odom_combined'
-                projectile_msg.header = header
-                projectile_msg.object_id = 0
+                    # # Throw out NAN
+                    # # confidence_poi = confidence_poi_all[valid_ind,:]
+                    # # pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
+                    # # pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
 
-                t_perc = rospy.Time.now().to_sec() - stamps[0]
-                t_squared = t_perc**2
-                x = estimated_params[0] + estimated_params[3]*t_perc
-                y = estimated_params[1] + estimated_params[4]*t_perc
-                z = estimated_params[2] + estimated_params[5]*t_perc - 0.5 * 9.81 * t_squared
-                vz = estimated_params[5] - 9.81 * t_perc
-                # x = x0 + vx0 * t
-                # y = y0 + vy0 * t
-                # z = z0 + vz0 * t - 0.5 * 9.81 * t_squared
-                # Setting the variable in the message to computed results
-                projectile_msg.position.x = x
-                projectile_msg.position.y = y
-                projectile_msg.position.z = z
-                projectile_msg.velocity.x = estimated_params[3]
-                projectile_msg.velocity.y = estimated_params[4]
-                projectile_msg.velocity.z = vz
+                
+                
 
-                # projectile_msg.position.x = estimated_params[0]
-                # projectile_msg.position.y = estimated_params[1]
-                # projectile_msg.position.z = estimated_params[2]
-                # projectile_msg.velocity.x = estimated_params[3]
-                # projectile_msg.velocity.y = estimated_params[4]
-                # projectile_msg.velocity.z = estimated_params[5]
+                if DEBUG:
+                    # stamp 2: after detection method
+                    stamp_2 = rospy.Time.now().to_sec()
+                    rospy.logdebug("TIME SPENT IN DETECTION:  {}".format(stamp_2-stamp_1))
+
+                # Bounding box filtering
+                if BOUNDING_FILTER:
+                    # Throw out the pc that's not in the spatial limit
+                    ind_x = np.intersect1d(np.where(pc_xyz_poi[:,0] > bbox_x_min)[0], np.where(pc_xyz_poi[:,0] < bbox_x_max)[0])
+                    ind_y = np.intersect1d(np.where(pc_xyz_poi[:,1] > bbox_y_min)[0], np.where(pc_xyz_poi[:,1] < bbox_y_max)[0])
+                    ind_z = np.intersect1d(np.where(pc_xyz_poi[:,2] > bbox_z_min)[0], np.where(pc_xyz_poi[:,2] < bbox_z_max)[0])
+                    filtered_ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
+
+                    pc_xyz_poi = pc_xyz_poi[filtered_ind,:]
+                    pc_rgb_poi = pc_rgb_poi[filtered_ind,:]
+                    confidence_poi = confidence_poi[filtered_ind,:]
 
 
-                if PUBLISH_PROJ:
-                    projectile_msg_pub.publish(projectile_msg)
-                    finish_stamp = rospy.Time.now().to_sec()
-                    rospy.logwarn("Publishing projectile!")
-                    print(projectile_msg)
+                # Outlier rejection
+                if OUTLIER_REJECT:
+                    x_mean = np.mean(pc_xyz_poi[:,0])
+                    y_mean = np.mean(pc_xyz_poi[:,1])
+                    z_mean = np.mean(pc_xyz_poi[:,2])
+                    x_std = np.std(pc_xyz_poi[:,0])
+                    y_std = np.std(pc_xyz_poi[:,1])
+                    z_std = np.std(pc_xyz_poi[:,2])
+                    ind_x = np.intersect1d(np.where(pc_xyz_poi[:,0] > x_mean - 2*x_std)[0], np.where(pc_xyz_poi[:,0] < x_mean + 2*x_std)[0])
+                    ind_y = np.intersect1d(np.where(pc_xyz_poi[:,1] > y_mean - 2*y_std)[0], np.where(pc_xyz_poi[:,1] < y_mean + 2*y_std)[0])
+                    ind_z = np.intersect1d(np.where(pc_xyz_poi[:,2] > z_mean - 2*z_std)[0], np.where(pc_xyz_poi[:,2] < z_mean + 2*z_std)[0])
+                    ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
+                    pc_xyz_poi = pc_xyz_poi[ind,:]
+                    pc_rgb_poi = pc_rgb_poi[ind,:]
+                    confidence_poi = confidence_poi[ind,:]
 
-                break
+                
 
-            # Code to pick color on-click on image
-            # def click_event(event, x, y,  flags, params):
-            #     if event == cv2.EVENT_LBUTTONDBLCLK:
-            #         print('Col: ', x, ' Row: ', y)
-            #         print(hsv_image[y, x])
-            
-            # cv2.namedWindow('image')
-            # cv2.setMouseCallback('image',click_event)
-            # cv2.imshow("image", image_ocv)
-            # cv2.waitKey(1)
-            
+                if DEBUG:
+                    # stamp 3: after detection method
+                    stamp_3 = rospy.Time.now().to_sec()
+                    rospy.logdebug("TIME SPENT IN FILTERING:  {}".format(stamp_3-stamp_2))
+                    # continue
 
-    # Cleanup ZED and CV
-    cv2.destroyAllWindows()
-    zed.close()
+                # Only continue if there are more than MIN_PIXEL points (30+)
+                if pc_xyz_poi.shape[0] < MIN_PIXEL:
+                    continue
 
-    # Visualization Publishing and Time profiling
-    if count == Num_Frame:
-        visualize_projectile_points(measurements, projectile_marker_pub)
-        visualize_collected_pc(pc_xyz_list, pc_rgb_list, pc_pub)
+                # Calculate the mean of the depth
+                mean_X = np.mean(pc_xyz_poi[:,0])
+                mean_Y = np.mean(pc_xyz_poi[:,1])
+                mean_Z = np.mean(pc_xyz_poi[:,2])
+                mean_Conf = np.mean(confidence_poi[:])
+                if DEBUG:
+                    print("Mean Depth: {}".format(mean_X))
 
-        # Summary of the run
-        print("*******************************************************")
-        for ind, frame in enumerate(measurements):
-            print("Point {}: Number of Pixels = {}".format(ind, pc_xyz_list[ind].shape[0]))
-            print("Time Stamp: {}".format(stamps[ind]))
-            print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}".format(frame[0], frame[1], frame[2], frame[3]))
-        print("*******************************************************")
-        print("Projectile Publish Stamp: {}".format(finish_stamp))
-        print("Time SPENT in Perception: {}".format(finish_stamp - stamps[0]) )
+                # Check if the point is inside the bounding box
+                # if bbox_x_min <= mean_X <= bbox_x_max and \
+                #    bbox_y_min <= mean_Y <= bbox_y_max and \
+                #    bbox_z_min <= mean_Z <= bbox_z_max:
+                    # Point is inside the bounding box, process it
+                
+                if mean_X != 0 and mean_X < DIST_THRESHOLD:
+                # if mean_X != 0 and mean_X < DIST_THRESHOLD and mean_Conf < 50:
+                    if SAVE_IMG:
+                        image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
+                        img_mk_path = img_path + "img_mk_" + str(count) + ".jpg"
+                        img_og_path = img_path + "img_og_" + str(count) + ".jpg"
+                        cv2.imwrite(img_mk_path, image_masked)
+                        cv2.imwrite(img_og_path, image_ocv)
+
+                    # Record Time stamps
+                    count = count + 1
+                    if count == 1:
+                        t = 0.0
+                        stamps.append(stamp_temp)
+                    else:
+                        t = stamp_temp-stamps[0]
+                        stamps.append(stamp_temp)
+
+                    # Storing Data
+                    print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}, Conf: {:.3f}".format(t, mean_X, mean_Y, mean_Z, mean_Conf))
+                    measurements.append((t, mean_X, mean_Y, mean_Z))
+                    pc_xyz_list.append(pc_xyz_poi)
+                    pc_rgb_list.append(pc_rgb_poi)
+
+                # Collected Enough Points
+                if count >= Num_Frame:
+                    # Perform trajectory estimation here using the measurements
+                    estimated_params = estimate_trajectory(measurements)
+                    print(f"Estimated Parameters (XYZ,VxVyVz): \n{estimated_params}")
+
+                    # Publish Projectile Msg            
+                    projectile_msg = Projectile()
+                    header = std_msgs.msg.Header()
+                    header.stamp = rospy.Time.now()
+                    header.frame_id = 'odom_combined'
+                    projectile_msg.header = header
+                    projectile_msg.object_id = 0
+
+                    t_perc = rospy.Time.now().to_sec() - stamps[0]
+                    t_squared = t_perc**2
+                    x = estimated_params[0] + estimated_params[3]*t_perc
+                    y = estimated_params[1] + estimated_params[4]*t_perc
+                    z = estimated_params[2] + estimated_params[5]*t_perc - 0.5 * 9.81 * t_squared
+                    vz = estimated_params[5] - 9.81 * t_perc
+                    # x = x0 + vx0 * t
+                    # y = y0 + vy0 * t
+                    # z = z0 + vz0 * t - 0.5 * 9.81 * t_squared
+                    # Setting the variable in the message to computed results
+                    projectile_msg.position.x = x
+                    projectile_msg.position.y = y
+                    projectile_msg.position.z = z
+                    projectile_msg.velocity.x = estimated_params[3]
+                    projectile_msg.velocity.y = estimated_params[4]
+                    projectile_msg.velocity.z = vz
+
+                    # projectile_msg.position.x = estimated_params[0]
+                    # projectile_msg.position.y = estimated_params[1]
+                    # projectile_msg.position.z = estimated_params[2]
+                    # projectile_msg.velocity.x = estimated_params[3]
+                    # projectile_msg.velocity.y = estimated_params[4]
+                    # projectile_msg.velocity.z = estimated_params[5]
+
+
+                    if PUBLISH_PROJ:
+                        # global measurements, stamps, finish_stamp, pc_xyz_list, pc_rgb_list
+
+                        projectile_msg_pub.publish(projectile_msg)
+                        finish_stamp = rospy.Time.now().to_sec()
+                        rospy.logwarn("Publishing projectile!")
+                        print(projectile_msg)
+
+                        # Visualization Publishing and Time profiling
+                        if count == Num_Frame:
+                            visualize_projectile_points(measurements, projectile_marker_pub)
+                            visualize_collected_pc(pc_xyz_list, pc_rgb_list, pc_pub)
+
+                            # Summary of the run
+                            print("*******************************************************")
+                            for ind, frame in enumerate(measurements):
+                                print("Point {}: Number of Pixels = {}".format(ind, pc_xyz_list[ind].shape[0]))
+                                print("Time Stamp: {}".format(stamps[ind]))
+                                print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}".format(frame[0], frame[1], frame[2], frame[3]))
+                            print("*******************************************************")
+                            print("Projectile Publish Stamp: {}".format(finish_stamp))
+                            print("Time SPENT in Perception: {}".format(finish_stamp - stamps[0]) )
+                        
+                        # Resetting variables
+                        measurements.clear()
+                        stamps.clear()
+                        finish_stamp = 0
+                        pc_xyz_list.clear()
+                        pc_rgb_list.clear()
+                        count = 0
+                        time.sleep(5)
+
+                # Code to pick color on-click on image
+                # def click_event(event, x, y,  flags, params):
+                #     if event == cv2.EVENT_LBUTTONDBLCLK:
+                #         print('Col: ', x, ' Row: ', y)
+                #         print(hsv_image[y, x])
+                
+                # cv2.namedWindow('image')
+                # cv2.setMouseCallback('image',click_event)
+                # cv2.imshow("image", image_ocv)
+                # cv2.waitKey(1)
+    except KeyboardInterrupt:
+        # Cleanup ZED and CV
+        cv2.destroyAllWindows()
+        zed.close()
+
+    
 
 
 if __name__ == "__main__":

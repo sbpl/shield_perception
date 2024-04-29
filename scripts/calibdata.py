@@ -26,7 +26,9 @@ T_TOOL0_CONTROLLER_TO_TOOL0 = getTransformationMatrix([0, 0.0, 0],
                               R.from_euler("xyz", [0, 0, 0]).as_quat())
 
 # Num poses used for calibration
-NUM_POSES = 100
+# NUM_POSES = 100
+NUM_POSES = 50
+
 
 class Calibration:
     def __init__(self, folder_name):

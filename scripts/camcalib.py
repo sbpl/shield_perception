@@ -52,8 +52,9 @@ if err != sl.ERROR_CODE.SUCCESS:
     exit(-1)
 
 # output save dir
-num_samples = 100
-save_dir = '/home/shield/code/shield_ws/src/shield_perception/scripts/camera_calibration/calib_data'
+# num_samples = 100
+num_samples = 50
+save_dir = '/home/shield/code/shield_obs_ws/src/shield_perception/scripts/camera_calibration/calib_data'
 
 # planner params
 nq = 6
@@ -75,10 +76,10 @@ curr_state = JointTrajectoryControllerState()
 #     curr_state = data
 
 # execution
-with open('/home/shield/code/shield_ws/src/abb_robot_driver/abb_robot_bringup_examples/scripts/calib_start.pkl', 'rb') as file:
+with open('/home/shield/code/shield_obs_ws/src/abb_robot_driver/abb_robot_bringup_examples/scripts/calib_start.pkl', 'rb') as file:
     start_tpva = pickle.load(file)
 
-with open('/home/shield/code/shield_ws/src/abb_robot_driver/abb_robot_bringup_examples/scripts/calib_end.pkl', 'rb') as file:
+with open('/home/shield/code/shield_obs_ws/src/abb_robot_driver/abb_robot_bringup_examples/scripts/calib_end.pkl', 'rb') as file:
     end_tpva = pickle.load(file)
 calib_end_start = np.array([0, 1.57, -1.57, 0, 0, 0])
 
@@ -288,6 +289,8 @@ def clickAndSavePic(id):
           limg.write(f)
           f = os.path.join(save_dir, 'right', str(id)+'.png')
           rimg.write(f)
+    else:
+        print("Failed to grab photo from ZED")
 
 if __name__ == "__main__":
 
