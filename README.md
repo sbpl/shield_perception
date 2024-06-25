@@ -2,7 +2,7 @@
 
 ## Dependencies
 
-[ZED SDK](https://www.stereolabs.com/developers/release)
+[ZED SDK](https://www.stereolabs.com/developers/release)\
 [ROS](https://wiki.ros.org/) packages
 
 ## Hardware
