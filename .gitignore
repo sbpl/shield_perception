@@ -1,1 +1,8 @@
 *.pickle
+*.pkl
+scripts/camera_calibration/calib_data
+scripts/camera_calibration/color_data
+__pycache__
+.idea
+.vscode
+logs

@@ -2,6 +2,7 @@ Notes:
 -> Do not run cam without lappy on charge
 
 Steps:
+ssh pr2@10.68.0.1
 Stuff to launch on the robot - 
 Start Estop 
 Tmux start
@@ -11,14 +12,15 @@ roslaunch freenect_launch freenect.launch
 tmux end
 Switch to client
 sudo ntpdate -u 10.68.0.1 (syncs clocks)
-source ~/catkin_ws/tmux_robot_expts.sh
+source tmux_robot_expts.sh in shield_perception/tmux/tmux_robot_expts.sh
 Launch cam driver (0,0)
 launch cam filter (1,0)
-launch rqt reconfigure
+launch rqt reconfigure (bottom-right)
 sc_nodelet -> depth_mode=hybrid (once per pr2 roscore launch)
+run frame rate monitoring (bottom-right): rostopic hz /sc/depth/points
 launch rviz for verifying the point clound filtering
- sc frame -> sc_depth_frame
-robot -> base_footprint
+sc frame -> sc_depth_frame | topic: external_filtered/output
+robot -> base_footprint | topic: kinect_filtered/output
 
 
 

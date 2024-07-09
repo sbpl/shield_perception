@@ -1,0 +1,81 @@
+<launch>
+  <node pkg="nodelet" type="nodelet" name="pcl_manager" args="manager" output="screen" />
+
+  <!-- <node pkg="nodelet" type="nodelet" name="zed_filtered_z_only" args="load pcl/PassThrough pcl_manager" output="screen">
+    <remap from="~input" to="/zed2i/zed_nodelet/point_cloud/cloud_registered" />
+    <rosparam>
+      filter_field_name: z
+      filter_limit_min: -0.5
+      filter_limit_max: 2.5
+      filter_limit_negative: False
+      output_frame: base_link
+    </rosparam>
+  </node>
+  <node pkg="nodelet" type="nodelet" name="zed_filtered_x_only" args="load pcl/PassThrough pcl_manager" output="screen">
+    <remap from="~input" to="/zed2i/zed_nodelet/point_cloud/cloud_registered" />
+    <rosparam>
+      filter_field_name: x
+      filter_limit_min: -0.5
+      filter_limit_max: 2.5
+      filter_limit_negative: False
+      output_frame: base_link
+    </rosparam>
+  </node>
+  <node pkg="nodelet" type="nodelet" name="zed_filtered_y_only" args="load pcl/PassThrough pcl_manager" output="screen">
+    <remap from="~input" to="/zed2i/zed_nodelet/point_cloud/cloud_registered" />
+    <rosparam>
+      filter_field_name: y
+      filter_limit_min: -0.5
+      filter_limit_max: 2.5
+      filter_limit_negative: False
+      output_frame: base_link
+    </rosparam>
+  </node> -->
+
+  <!-- Run a zed_filtered filter to clean NaNs -->
+  <!-- x-axis: depth, y-axis: horizon (width), z-axis: vertical (height)-->
+  <node pkg="nodelet" type="nodelet" name="zed_filtered_x" args="load pcl/PassThrough pcl_manager" output="screen">
+    <remap from="~input" to="/zed2i/zed_nodelet/point_cloud/cloud_registered" />
+    <rosparam>
+      filter_field_name: x
+      filter_limit_min: 1.0
+      filter_limit_max: 4.0
+      filter_limit_negative: False
+      output_frame: base_link
+    </rosparam>
+  </node>
+  <node pkg="nodelet" type="nodelet" name="zed_filtered_y" args="load pcl/PassThrough pcl_manager" output="screen">
+    <remap from="~input" to="/zed_filtered_x/output" />
+    <rosparam>
+      filter_field_name: y
+      filter_limit_min: -2
+      filter_limit_max: 2
+      filter_limit_negative: False
+      output_frame: base_link
+    </rosparam>
+  </node>
+  <node pkg="nodelet" type="nodelet" name="zed_filtered" args="load pcl/PassThrough pcl_manager" output="screen">
+    <remap from="~input" to="/zed_filtered_y/output" />
+    <rosparam>
+      filter_field_name: z
+      filter_limit_min: 0.0
+      filter_limit_max: 2.8
+      filter_limit_negative: False
+      output_frame: base_link
+    </rosparam>
+  </node>
+
+  <!-- <node type="point_cloud2_assembler" pkg="laser_assembler" name="assemble_scans2">
+    <remap from="cloud" to="/zed2i/filtered_point_cloud"/>
+    <param name="max_clouds" type="int" value="5" />
+    <param name="fixed_frame" type="string" value="base_link" />
+    <param name="tf_cache_time_secs" type="double" value="2.0" /> -->
+  <!-- </node> -->
+
+  <!-- <node type="point_cloud2_assembler" pkg="laser_assembler" name="assemble_scans2">
+    <remap from="cloud" to="/zed_filtered/output"/>
+    <param name="max_clouds" type="int" value="5" />
+    <param name="fixed_frame" type="string" value="base_link" />
+    <param name="tf_cache_time_secs" type="double" value="2.0" />
+  </node> -->
+</launch>

@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+        <node name="lidar_ball_detector" pkg="shield_perception" type="lidar_ball_detector.py" output="screen"/>
+
+        <node name="lidar_diff_plotter" pkg="rqt_plot" type="rqt_plot" args="/scan1_diff/data /scan2_diff/data"/>
+</launch>

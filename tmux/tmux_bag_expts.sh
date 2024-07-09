@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 tmux new-session -d -s 'bag'
 tmux split-window -h
 tmux select-pane -t 0
