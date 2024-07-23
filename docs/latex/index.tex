@@ -1,0 +1,68 @@
+\label{index_md_README}%
+\Hypertarget{index_md_README}%
+ \hypertarget{index_autotoc_md1}{}\doxysection{Dependencies}\label{index_autotoc_md1}
+\href{https://www.stereolabs.com/developers/release}{\texttt{ ZED SDK}}\textbackslash{} \href{https://wiki.ros.org/}{\texttt{ ROS}} packages\hypertarget{index_autotoc_md2}{}\doxysection{Hardware}\label{index_autotoc_md2}
+Stereo\+Labs ZED 2i Stereo Camera \href{https://www.stereolabs.com/products/zed-2}{\texttt{ \mbox{[}link\mbox{]}}}\hypertarget{index_autotoc_md3}{}\doxysection{Calibration}\label{index_autotoc_md3}
+{\bfseries{Requirements\+:}} 3D print of camera calibration tool provided in {\ttfamily scripts/camera\+\_\+calibration/calibration\+\_\+tool}
+
+
+
+We have an automated Hand-\/\+Eye calibration tool that finds the pose of the camera frame with respect to the base frame of the robot given an approximate initial pose. Using this approximate initial pose, we compute a Region of Interest (RoI). We use Mu\+Jo\+Co (included in this package) to model this RoI, sample poses from it. We then run IK to find a robot configuration to reach this pose such that the calibration tool is in the field of view of the camera and use a interpolator to command the robot to reach the configration. Once reached, we use the ZED SDK to save an image of the checkerboard pattern in the calibration tool. This data collected is used in the subsequent registration algorithm to find the pose of the camera frame from the base link.
+
+To collect data for calibration, run 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{cd scripts}
+\DoxyCodeLine{python camcalib.py}
+
+\end{DoxyCode}
+ The collected data looks like 
+
+To perform registration, run 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{cd scripts}
+\DoxyCodeLine{python calibdata.py}
+
+\end{DoxyCode}
+
+
+{\bfseries{Note\+:}} The interpolator used above for calibration does not perform collision checking!\hypertarget{index_autotoc_md4}{}\doxysection{Perception Pipeline}\label{index_autotoc_md4}
+The perception pipeline that runs online consists of two parts
+\begin{DoxyEnumerate}
+\item The detection submodule which continuously scans the environment to detect an object being thrown at the robot
+\item The prediction submodule that predicts the future motion of the object given a set of detected poses.
+\end{DoxyEnumerate}
+
+\hypertarget{index_autotoc_md5}{}\doxysubsection{Ball Detection}\label{index_autotoc_md5}
+The pipeline assumes a particular color of the ball and performs color filtering over every dataframe of the camera to detect the ball. If there is any activity, we retrieve their depth values from the pointcloud and check for outliers and reject them to ensure that no spurious activity is detected. This camera is set at 60fps @ 720p.\hypertarget{index_autotoc_md6}{}\doxysubsection{Ball Prediction}\label{index_autotoc_md6}
+For prediction, we use a simple parabolic projectile model assuming no air drag. To find the predicted trajectory of the ball, we run an optimization to minimize the Least Means Square (LMS) of the error between the observed data and the model.
+
+
+
+To run the Perception Pipeline, first make sure that the {\ttfamily shield\+\_\+planner} is running and connected to the robot and then run 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{cd scripts}
+\DoxyCodeLine{python track\_ball\_sdk.py}
+
+\end{DoxyCode}
+
+
+The following parameters in the script needs to be tuned for every environment 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\# Macro: }
+\DoxyCodeLine{\# METHOD\_ID: 0 = bounding box, 1 = color filtering}
+\DoxyCodeLine{\# NUM\_FRAME: number of frames required to start estimation}
+\DoxyCodeLine{\# COLOR\_FILTER: sets of color filtering in pc}
+\DoxyCodeLine{\#\# 0: nothing}
+\DoxyCodeLine{\#\# 1: lower = (160, 40, 40) upper = (250, 125, 125) -\/ working, well?}
+\DoxyCodeLine{\# PRINT\_COLOR: print out color's bound}
+\DoxyCodeLine{\# OUTLIER\_REJECT: perform outlier reject or not}
+\DoxyCodeLine{\# PASSTHROUGH: Filter data (turn off perception) outside a virtual bounding box}
+\DoxyCodeLine{METHOD\_ID=0}
+\DoxyCodeLine{NUM\_FRAME=3}
+\DoxyCodeLine{COLOR\_FILTER=0}
+\DoxyCodeLine{PRINT\_COLOR=0}
+\DoxyCodeLine{OUTLIER\_REJECT=1}
+\DoxyCodeLine{PASSTHROUGH = 0}
+
+\end{DoxyCode}
+ 

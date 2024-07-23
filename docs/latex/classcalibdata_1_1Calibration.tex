@@ -1,0 +1,81 @@
+\hypertarget{classcalibdata_1_1Calibration}{}\doxysection{calibdata.\+Calibration Class Reference}
+\label{classcalibdata_1_1Calibration}\index{calibdata.Calibration@{calibdata.Calibration}}
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_a9d375a9e2d7b4efbb6484a14cb1f46fe}\label{classcalibdata_1_1Calibration_a9d375a9e2d7b4efbb6484a14cb1f46fe}} 
+def {\bfseries \+\_\+\+\_\+init\+\_\+\+\_\+} (self, folder\+\_\+name)
+\item 
+def \mbox{\hyperlink{classcalibdata_1_1Calibration_ad82904621a13048680f901b5fce253a0}{read\+\_\+data}} (self, folder)
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_af853bd569058fbaa5992cfbfb54bb610}\label{classcalibdata_1_1Calibration_af853bd569058fbaa5992cfbfb54bb610}} 
+def {\bfseries convert\+\_\+to\+\_\+tool\+\_\+frame} (self, ee\+\_\+pose)
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_ae69e36a5f8cadf597874162b5e136c03}\label{classcalibdata_1_1Calibration_ae69e36a5f8cadf597874162b5e136c03}} 
+def {\bfseries calibrate} (self)
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_a8a96c77a9cf205058471ef12c0fb9d4d}\label{classcalibdata_1_1Calibration_a8a96c77a9cf205058471ef12c0fb9d4d}} 
+def {\bfseries get\+Baseto\+Checkerboard\+Pose} (self, ee\+\_\+pose)
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_a0cc65290a7d4d179df3eb6889cb05605}\label{classcalibdata_1_1Calibration_a0cc65290a7d4d179df3eb6889cb05605}} 
+def {\bfseries estimate\+Checkerboard\+Pose\+On\+Target} (self, image, ee\+\_\+pose, checkerboard=(7, 6), square\+\_\+size=14.)
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_a45fe3c9382e681df85300ff93eb5b511}\label{classcalibdata_1_1Calibration_a45fe3c9382e681df85300ff93eb5b511}} 
+def {\bfseries test} (self)
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_a1fc64f0a80b5bbd216352ad2623ab6ac}\label{classcalibdata_1_1Calibration_a1fc64f0a80b5bbd216352ad2623ab6ac}} 
+def {\bfseries test\+\_\+obj\+\_\+world\+\_\+points} (self, ee\+\_\+pose)
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_affd102e4ac2a6ab21d0dc2b9ac343c67}\label{classcalibdata_1_1Calibration_affd102e4ac2a6ab21d0dc2b9ac343c67}} 
+def {\bfseries test\+\_\+check\+\_\+cam\+\_\+pose} (self, frame, world\+\_\+points=None, plot=False)
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_adc794095aa558a171694bf5b95ace314}\label{classcalibdata_1_1Calibration_adc794095aa558a171694bf5b95ace314}} 
+def {\bfseries statistic} (self)
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_ae5233bad3d52ee6a963be5c2ce7fc929}\label{classcalibdata_1_1Calibration_ae5233bad3d52ee6a963be5c2ce7fc929}} 
+def {\bfseries base\+\_\+to\+\_\+cambase} (self)
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_ae8aa754c5ff2314d398df0dd4f8a9e61}\label{classcalibdata_1_1Calibration_ae8aa754c5ff2314d398df0dd4f8a9e61}} 
+def {\bfseries base\+\_\+to\+\_\+camleft} (self)
+\end{DoxyCompactItemize}
+\doxysubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_a15fafb2315ed5f34ffaf232d77251535}\label{classcalibdata_1_1Calibration_a15fafb2315ed5f34ffaf232d77251535}} 
+{\bfseries ee\+\_\+poses\+\_\+}
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_adfd9c1045d1011b49f99b2445eefc95d}\label{classcalibdata_1_1Calibration_adfd9c1045d1011b49f99b2445eefc95d}} 
+{\bfseries imgs\+\_\+}
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_a544193203c3a73523e04019495459bf5}\label{classcalibdata_1_1Calibration_a544193203c3a73523e04019495459bf5}} 
+{\bfseries camera\+\_\+intrinsic\+\_\+matrix\+\_\+}
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_ac77d4bc9cf64247c409b9f23a5a81497}\label{classcalibdata_1_1Calibration_ac77d4bc9cf64247c409b9f23a5a81497}} 
+{\bfseries camera\+\_\+distortion\+\_\+matrix\+\_\+}
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_ad9d149c06b832f12c9251aba20655663}\label{classcalibdata_1_1Calibration_ad9d149c06b832f12c9251aba20655663}} 
+{\bfseries T\+\_\+eef\+\_\+to\+\_\+checkerboard}
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_aef95558af0f3dfdd3a2f1259c5104b00}\label{classcalibdata_1_1Calibration_aef95558af0f3dfdd3a2f1259c5104b00}} 
+{\bfseries T\+\_\+tool0\+\_\+controller\+\_\+to\+\_\+tool\+\_\+}
+\item 
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_abb6e75291ed87a1bb02e37bf04adf2c7}\label{classcalibdata_1_1Calibration_abb6e75291ed87a1bb02e37bf04adf2c7}} 
+{\bfseries T\+\_\+base\+\_\+to\+\_\+cam}
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{classcalibdata_1_1Calibration_ad82904621a13048680f901b5fce253a0}\label{classcalibdata_1_1Calibration_ad82904621a13048680f901b5fce253a0}} 
+\index{calibdata.Calibration@{calibdata.Calibration}!read\_data@{read\_data}}
+\index{read\_data@{read\_data}!calibdata.Calibration@{calibdata.Calibration}}
+\doxysubsubsection{\texorpdfstring{read\_data()}{read\_data()}}
+{\footnotesize\ttfamily def calibdata.\+Calibration.\+read\+\_\+data (\begin{DoxyParamCaption}\item[{}]{self,  }\item[{}]{folder }\end{DoxyParamCaption})}
+
+\begin{DoxyVerb}Read data from folder, ee_pose will be given in txt file, where it is a Nx13 matrix.
+Each row is a row major order array of index + 3x1 translation vector + 3x3 rot mat flatten (row major) array.
+\end{DoxyVerb}
+ 
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+scripts/calibdata.\+py\end{DoxyCompactItemize}
