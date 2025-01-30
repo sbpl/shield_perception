@@ -13,7 +13,8 @@ import std_msgs.msg
 import sys, signal
 import time
 from visualization_msgs.msg import MarkerArray, Marker
-
+import detection_utils
+from ultralytics import YOLO
 import pdb
 
 # Relative Imports
@@ -21,7 +22,11 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),"camera_
 from helpers import *
 from constants import *
 
+# retrained YOLOv8 model
+model = YOLO("YOLOv8_weights.pt")
+
 # MACRO
+DETECTION_ID = 1 # 0 - Color filter, 1 - retrained YOLOv8
 OUTLIER_REJECT=1
 BOUNDING_FILTER=1
 DIST_THRESHOLD=4.5
@@ -29,7 +34,7 @@ MIN_PIXEL=15
 PUBLISH_PROJ=1
 METHOD_ID=1         #0 = native bounding box (aborted), 1 = color detection, 2 = open3d bounding box (aborted)
 DEBUG=0
-VISUAL=0
+VISUAL=1
 SAVE_IMG=0  
 RES=0 # 0 - VGA, 1 - 720p
 LIGHT_CONDITION=3   #0 = no lights, 1 = cam lights, 2 = left lights, 3 = ceil lights, 4 = cam + ceil, 5 = left + ceil
@@ -343,28 +348,15 @@ def main():
                 elif METHOD_ID == 1:
                     # Convert ZED Mat objects to numpy arrays
                     image_ocv = image.get_data()
-                    hsv_image = cv2.cvtColor(image_ocv, cv2.COLOR_BGR2HSV)
 
-                    # Define the adjusted range for bright orange color in HSV
-                    lower_bound_orange = np.array([5, 75, 100])
-                    upper_bound_orange = np.array([30, 255, 255])
-                    # Define the adjusted range for green color in HSV
-                    lower_bound_green = np.array([50, 75, 100])
-                    upper_bound_green = np.array([85, 255, 255])
-
-                    # Create a binary mask for orange color in HSV
-                    mask_orange = cv2.inRange(hsv_image, lower_bound_orange, upper_bound_orange)
-                    mask_green = cv2.inRange(hsv_image, lower_bound_green, upper_bound_green)
-                    mask = mask_orange + mask_green
-                    # mask = mask_orange
-                    where = np.where(mask == 255)
-
-                    # DEBUG: Visualize masked image
-                    if VISUAL:
-                        image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
-                        cv2.namedWindow('image1')
-                        cv2.imshow("image1", image_masked)
-                        cv2.waitKey(1)
+                    # Run Detection based on the selection
+                    if DETECTION_ID == 0:
+                        where = detection_utils.color_filter(image_ocv, VISUAL)
+                    elif DETECTION_ID == 1:
+                        image_rgb = cv2.cvtColor(image_ocv, cv2.COLOR_RGBA2RGB)
+                        x1,x2,y1,y2 = detection_utils.retrained_YOLOv8(image_rgb, model, VISUAL)
+                        x1,x2,y1,y2 = detection_utils.shrink_bbox_area([len(image_rgb), len(image_rgb[0])],x1,x2,y1,y2)
+                        where = detection_utils.conversion_bbox_mask(x1,x2,y1,y2)
 
                     # Masked PC and Confidence
                     confidence_poi_all = confidence_np[where[0], where[1]].reshape((-1,1))
