@@ -3,6 +3,8 @@ import numpy as np
 import math
 print(cv2.__version__)
 
+CONFIDENCE_VAL = 0.75
+
 def color_filter(image_ocv, VISUAL):
     """
     COLOR FILTER implementation.
@@ -34,8 +36,8 @@ def conversion_bbox_mask(x1,x2,y1,y2):
     Convert bbox corners to the same format as color filter 'where' variable.
     """
     # y is row, x is column
-    y_array = np.array(i for i in range(y1, y2+1))
-    x_array = np.array(i for i in range(x1, x2+1))
+    y_array = np.array([i for i in range(y1, y2+1)])
+    x_array = np.array([i for i in range(x1, x2+1)])
     return (y_array, x_array)
 
 def reverse_map_sigmoid(x, input_min=0.000395, input_max=0.01, output_min=0.8, output_max=0.2):
@@ -85,7 +87,7 @@ def retrained_YOLOv8(image, model, VISUAL):
     labels = df.cls.cpu().numpy()  
     scores = df.conf.cpu().numpy()
     for p in range(len(bboxs)):
-        if scores[p] > 0.75 and labels[p] ==1:
+        if scores[p] > CONFIDENCE_VAL and labels[p] ==1:
             x1, y1, x2, y2 = int(bboxs[p][0]), int(bboxs[p][1]), int(bboxs[p][2]), int(bboxs[p][3])
             #center_x = (x1 + x2) // 2 # in pixel unit
             #center_y = (y1 + y2) // 2
