@@ -86,6 +86,7 @@ def retrained_YOLOv8(image, model, VISUAL):
     bboxs = df.xyxy.cpu().numpy()
     labels = df.cls.cpu().numpy()  
     scores = df.conf.cpu().numpy()
+    x1, x2, y1, y2 = None, None, None, None
     for p in range(len(bboxs)):
         if scores[p] > CONFIDENCE_VAL and labels[p] ==1:
             x1, y1, x2, y2 = int(bboxs[p][0]), int(bboxs[p][1]), int(bboxs[p][2]), int(bboxs[p][3])
