@@ -35,9 +35,14 @@ def conversion_bbox_mask(x1,x2,y1,y2):
     """
     Convert bbox corners to the same format as color filter 'where' variable.
     """
+    pixels_list = [] 
     # y is row, x is column
-    y_array = np.array([i for i in range(y1, y2+1)])
-    x_array = np.array([i for i in range(x1, x2+1)])
+    for y in range(y1, y2+1):
+        for x in range(x1, x2+1):
+            pixels_list.append([y,x])
+    y_array = np.array(pixels_list)[:,0]
+    x_array = np.array(pixels_list)[:,1]
+    print(y_array,x_array)
     return (y_array, x_array)
 
 def reverse_map_sigmoid(x, input_min=0.000395, input_max=0.01, output_min=0.8, output_max=0.2):
