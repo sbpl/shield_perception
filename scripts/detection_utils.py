@@ -3,6 +3,10 @@ import numpy as np
 import math
 print(cv2.__version__)
 
+"""
+For the first network model (weight.pt), it needs to be tuned to 0.65 when the resolution is high.
+For the second network model (weight_2.pt), 0.3 should be good for different resolutions.
+"""
 CONFIDENCE_VAL = 0.3
 
 def color_filter(image_ocv, VISUAL):
