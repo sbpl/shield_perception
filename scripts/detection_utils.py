@@ -86,7 +86,7 @@ def retrained_YOLOv8(image, model, VISUAL):
     Later it will be changed to its own method.
     """
     map = {0:'person', 1: 'ball'}
-    results = model(image)
+    results = model(image, verbose=False)
     df = results[0].boxes
     bboxs = df.xyxy.cpu().numpy()
     labels = df.cls.cpu().numpy()  
