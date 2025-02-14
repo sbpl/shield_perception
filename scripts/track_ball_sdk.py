@@ -22,9 +22,6 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),"camera_
 from helpers import *
 from constants import *
 
-# retrained YOLOv8 model
-model = YOLO("YOLOv8_weights.pt")
-
 # MACRO
 DETECTION_ID = 1 # 0 - Color filter, 1 - retrained YOLOv8
 OUTLIER_REJECT=1
@@ -39,6 +36,14 @@ SAVE_IMG=0
 RES=0 # 0 - VGA, 1 - 720p
 LIGHT_CONDITION=3   #0 = no lights, 1 = cam lights, 2 = left lights, 3 = ceil lights, 4 = cam + ceil, 5 = left + ceil
 
+# retrained YOLOv8 model
+YOLO_VERSION = 0
+
+if YOLO_VERSION == 0:
+    model = YOLO("YOLOv8_weights.pt")
+else:
+    model = YOLO("YOLOv8_weights_2.pt")
+    
 # min_radius = 1  # Minimum radius of the ball
 # max_radius = 30  # Maximum radius of the ball
 
@@ -353,7 +358,10 @@ def main():
                         where = detection_utils.color_filter(image_ocv, VISUAL)
                     elif DETECTION_ID == 1:
                         image_rgb = cv2.cvtColor(image_ocv, cv2.COLOR_RGBA2RGB)
-                        x1,x2,y1,y2 = detection_utils.retrained_YOLOv8(image_rgb, model, VISUAL)
+                        if YOLO_VERSION == 0:
+                            x1,x2,y1,y2 = detection_utils.retrained_YOLOv8_v1(image_rgb, model, VISUAL)
+                        else:
+                            x1,x2,y1,y2 = detection_utils.retrained_YOLOv8_v2(image_rgb, model, VISUAL)
                         if x1 is not None:
                             x1,x2,y1,y2 = detection_utils.shrink_bbox_area([len(image_rgb), len(image_rgb[0])],x1,x2,y1,y2)
                             where = detection_utils.conversion_bbox_mask(x1,x2,y1,y2)

@@ -74,7 +74,7 @@ def shrink_bbox_area(frame_size, x1,x2,y1,y2, vary=True, r=0.2):
 
     return x1_new, x2_new, y1_new, y2_new
 
-def retrained_YOLOv8(image, model, VISUAL):
+def retrained_YOLOv8_v1(image, model, VISUAL):
     """
     RETRAINED YOLOv8 IMPLEMENTATION.
 
@@ -97,6 +97,37 @@ def retrained_YOLOv8(image, model, VISUAL):
             x1, y1, x2, y2 = int(bboxs[p][0]), int(bboxs[p][1]), int(bboxs[p][2]), int(bboxs[p][3])
             #center_x = (x1 + x2) // 2 # in pixel unit
             #center_y = (y1 + y2) // 2
+            
+            if VISUAL:
+                cv2.rectangle(image, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                label_name = map[labels[p]]
+                cv2.putText(image, label_name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+                image = cv2.resize(image, (960, 540))  
+                cv2.imshow("Retrained YOLOv8 ", image)
+    return x1,x2,y1,y2
+
+
+def retrained_YOLOv8_v2(image, model, VISUAL):
+    """
+    RETRAINED YOLOv8 IMPLEMENTATION.
+
+    Run retrained YOLOv8 detection. 
+    The model only detect person and ball.
+    Right now the function follows the color filter result 
+    to generate output which contains x and y in each column respectively.
+    This is for testing easily at the early stage.
+    Later it will be changed to its own method.
+    """
+    map = {0: 'ball'}
+    results = model(image, verbose=False)
+    df = results[0].boxes
+    bboxs = df.xyxy.cpu().numpy()
+    labels = df.cls.cpu().numpy()  
+    scores = df.conf.cpu().numpy()
+    x1, x2, y1, y2 = None, None, None, None
+    for p in range(len(bboxs)):
+        if scores[p] > CONFIDENCE_VAL and labels[p] ==0:
+            x1, y1, x2, y2 = int(bboxs[p][0]), int(bboxs[p][1]), int(bboxs[p][2]), int(bboxs[p][3])
             
             if VISUAL:
                 cv2.rectangle(image, (x1, y1), (x2, y2), (255, 0, 0), 2)
