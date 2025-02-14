@@ -37,13 +37,13 @@ RES=0 # 0 - VGA, 1 - 720p
 LIGHT_CONDITION=3   #0 = no lights, 1 = cam lights, 2 = left lights, 3 = ceil lights, 4 = cam + ceil, 5 = left + ceil
 
 # retrained YOLOv8 model
-YOLO_VERSION = 0
+YOLO_VERSION = 1
 
 if YOLO_VERSION == 0:
     model = YOLO("YOLOv8_weights.pt")
 else:
     model = YOLO("YOLOv8_weights_2.pt")
-    
+
 # min_radius = 1  # Minimum radius of the ball
 # max_radius = 30  # Maximum radius of the ball
 

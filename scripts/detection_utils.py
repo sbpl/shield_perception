@@ -3,7 +3,7 @@ import numpy as np
 import math
 print(cv2.__version__)
 
-CONFIDENCE_VAL = 0.75
+CONFIDENCE_VAL = 0.3
 
 def color_filter(image_ocv, VISUAL):
     """
