@@ -499,57 +499,43 @@ def main():
                     # # confidence_poi = confidence_poi_all[valid_ind,:]
                     # # pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
                     # # pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
-
-                
-                
-
                 if DEBUG:
                     # stamp 2: after detection method
                     stamp_2 = rospy.Time.now().to_sec()
                     rospy.logdebug("TIME SPENT IN DETECTION:  {}".format(stamp_2-stamp_1))
 
                 # Bounding box filtering
-                if len(where)>0 and BOUNDING_FILTER:
-                    # Throw out the pc that's not in the spatial limit
-                    ind_x = np.intersect1d(np.where(pc_xyz_poi[:,0] > bbox_x_min)[0], np.where(pc_xyz_poi[:,0] < bbox_x_max)[0])
-                    ind_y = np.intersect1d(np.where(pc_xyz_poi[:,1] > bbox_y_min)[0], np.where(pc_xyz_poi[:,1] < bbox_y_max)[0])
-                    ind_z = np.intersect1d(np.where(pc_xyz_poi[:,2] > bbox_z_min)[0], np.where(pc_xyz_poi[:,2] < bbox_z_max)[0])
-                    filtered_ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
-
-                    pc_xyz_poi = pc_xyz_poi[filtered_ind,:]
-                    pc_rgb_poi = pc_rgb_poi[filtered_ind,:]
-                    confidence_poi = confidence_poi[filtered_ind,:]
-
-
-                # Outlier rejection
-                if len(where)>0 and OUTLIER_REJECT:
-                    x_mean = np.mean(pc_xyz_poi[:,0])
-                    y_mean = np.mean(pc_xyz_poi[:,1])
-                    z_mean = np.mean(pc_xyz_poi[:,2])
-                    x_std = np.std(pc_xyz_poi[:,0])
-                    y_std = np.std(pc_xyz_poi[:,1])
-                    z_std = np.std(pc_xyz_poi[:,2])
-                    ind_x = np.intersect1d(np.where(pc_xyz_poi[:,0] > x_mean - 2*x_std)[0], np.where(pc_xyz_poi[:,0] < x_mean + 2*x_std)[0])
-                    ind_y = np.intersect1d(np.where(pc_xyz_poi[:,1] > y_mean - 2*y_std)[0], np.where(pc_xyz_poi[:,1] < y_mean + 2*y_std)[0])
-                    ind_z = np.intersect1d(np.where(pc_xyz_poi[:,2] > z_mean - 2*z_std)[0], np.where(pc_xyz_poi[:,2] < z_mean + 2*z_std)[0])
-                    ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
-                    pc_xyz_poi = pc_xyz_poi[ind,:]
-                    pc_rgb_poi = pc_rgb_poi[ind,:]
-                    confidence_poi = confidence_poi[ind,:]
-
-                
-
-                if DEBUG:
-                    # stamp 3: after detection method
-                    stamp_3 = rospy.Time.now().to_sec()
-                    rospy.logdebug("TIME SPENT IN FILTERING:  {}".format(stamp_3-stamp_2))
-                    # continue
-
                 if len(where)>0:
+                    if BOUNDING_FILTER:
+                        # Throw out the pc that's not in the spatial limit
+                        ind_x = np.intersect1d(np.where(pc_xyz_poi[:,0] > bbox_x_min)[0], np.where(pc_xyz_poi[:,0] < bbox_x_max)[0])
+                        ind_y = np.intersect1d(np.where(pc_xyz_poi[:,1] > bbox_y_min)[0], np.where(pc_xyz_poi[:,1] < bbox_y_max)[0])
+                        ind_z = np.intersect1d(np.where(pc_xyz_poi[:,2] > bbox_z_min)[0], np.where(pc_xyz_poi[:,2] < bbox_z_max)[0])
+                        filtered_ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
+
+                        pc_xyz_poi = pc_xyz_poi[filtered_ind,:]
+                        pc_rgb_poi = pc_rgb_poi[filtered_ind,:]
+                        confidence_poi = confidence_poi[filtered_ind,:]
+
+                    # Outlier rejection
+                    if OUTLIER_REJECT:
+                        x_mean = np.mean(pc_xyz_poi[:,0])
+                        y_mean = np.mean(pc_xyz_poi[:,1])
+                        z_mean = np.mean(pc_xyz_poi[:,2])
+                        x_std = np.std(pc_xyz_poi[:,0])
+                        y_std = np.std(pc_xyz_poi[:,1])
+                        z_std = np.std(pc_xyz_poi[:,2])
+                        ind_x = np.intersect1d(np.where(pc_xyz_poi[:,0] > x_mean - 2*x_std)[0], np.where(pc_xyz_poi[:,0] < x_mean + 2*x_std)[0])
+                        ind_y = np.intersect1d(np.where(pc_xyz_poi[:,1] > y_mean - 2*y_std)[0], np.where(pc_xyz_poi[:,1] < y_mean + 2*y_std)[0])
+                        ind_z = np.intersect1d(np.where(pc_xyz_poi[:,2] > z_mean - 2*z_std)[0], np.where(pc_xyz_poi[:,2] < z_mean + 2*z_std)[0])
+                        ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
+                        pc_xyz_poi = pc_xyz_poi[ind,:]
+                        pc_rgb_poi = pc_rgb_poi[ind,:]
+                        confidence_poi = confidence_poi[ind,:]
+
                     # Only continue if there are more than MIN_PIXEL points (30+)
                     if pc_xyz_poi.shape[0] < MIN_PIXEL:
                         continue
-                
                 
                     # Calculate the mean of the depth
                     mean_X = np.mean(pc_xyz_poi[:,0])
