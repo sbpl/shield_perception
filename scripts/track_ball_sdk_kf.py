@@ -592,7 +592,12 @@ def main():
                     # Collected Enough Points
                     if count >= Num_Frame:
                         # Perform trajectory estimation here using the measurements
-                        estimated_params = estimate_trajectory(measurements)
+                        if KF:
+                            # Kalman Filter
+                            estimated_params = kf_prediction(measurements, future_dt= 0.02)
+                        else:
+                            # Traditional Physics
+                            estimated_params = estimate_trajectory(measurements)
 
 
                         print(f"Estimated Parameters (XYZ,VxVyVz): \n{estimated_params}")
