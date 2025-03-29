@@ -25,6 +25,7 @@ from constants import *
 
 # MACRO
 DETECTION_ID = 1 # 0 - Color filter, 1 - retrained YOLOv8
+KF = 1 # 0 - traditional physics to predict, 1 - kalman filter to predict
 OUTLIER_REJECT=1
 BOUNDING_FILTER=1
 DIST_THRESHOLD=4.5
@@ -592,6 +593,8 @@ def main():
                     if count >= Num_Frame:
                         # Perform trajectory estimation here using the measurements
                         estimated_params = estimate_trajectory(measurements)
+
+
                         print(f"Estimated Parameters (XYZ,VxVyVz): \n{estimated_params}")
 
                         # Publish Projectile Msg            
