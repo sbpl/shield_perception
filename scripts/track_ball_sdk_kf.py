@@ -28,7 +28,7 @@ DETECTION_ID = 1 # 0 - Color filter, 1 - retrained YOLOv8
 KF = 1 # 0 - traditional physics to predict, 1 - kalman filter to predict
 OUTLIER_REJECT=1
 BOUNDING_FILTER=1
-DIST_THRESHOLD=4.5
+DIST_THRESHOLD=7
 MIN_PIXEL=15
 PUBLISH_PROJ=1
 METHOD_ID=1         #0 = native bounding box (aborted), 1 = color detection, 2 = open3d bounding box (aborted)
