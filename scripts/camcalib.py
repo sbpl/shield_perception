@@ -22,10 +22,10 @@ from pydrake.all import BsplineTrajectory, KinematicTrajectoryOptimization, Solv
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, JointTrajectoryControllerState
 
-sim = False
+sim = True
 
 # model
-model_dir = '/home/shield/scratch/parallel_search/third_party/mujoco-2.3.2/model/abb/irb_1600/'
+model_dir = '/home/shield/sketch/parallel_search/third_party/mujoco-2.3.2/model/abb/irb_1600/'
 mjcf = 'irb1600_6_12_camcalib.xml'
 
 # viewer params

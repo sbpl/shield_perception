@@ -13,8 +13,7 @@ import std_msgs.msg
 import sys, signal
 import time
 from visualization_msgs.msg import MarkerArray, Marker
-import detection_utils
-from ultralytics import YOLO
+
 import pdb
 
 # Relative Imports
@@ -23,7 +22,6 @@ from helpers import *
 from constants import *
 
 # MACRO
-DETECTION_ID = 1 # 0 - Color filter, 1 - retrained YOLOv8
 OUTLIER_REJECT=1
 BOUNDING_FILTER=1
 DIST_THRESHOLD=4.5
@@ -35,14 +33,6 @@ VISUAL=0
 SAVE_IMG=0  
 RES=0 # 0 - VGA, 1 - 720p
 LIGHT_CONDITION=3   #0 = no lights, 1 = cam lights, 2 = left lights, 3 = ceil lights, 4 = cam + ceil, 5 = left + ceil
-
-# retrained YOLOv8 model
-YOLO_VERSION = 1
-
-if YOLO_VERSION == 0:
-    model = YOLO("YOLOv8_weights.pt")
-else:
-    model = YOLO("YOLOv8_weights_2.pt")
 
 # min_radius = 1  # Minimum radius of the ball
 # max_radius = 30  # Maximum radius of the ball
@@ -278,7 +268,7 @@ def main():
                     rospy.logerr("!!FRAMERATE!!: {} FPS".format(fps))
 
                 # continue
-
+                # rospy.logerr("!!FRAMERATE!!: {} FPS".format(fps))
                 # Retrieving Data
                 zed.retrieve_image(image, sl.VIEW.LEFT)
                 zed.retrieve_measure(point_cloud, sl.MEASURE.XYZRGBA)
@@ -353,33 +343,43 @@ def main():
                 elif METHOD_ID == 1:
                     # Convert ZED Mat objects to numpy arrays
                     image_ocv = image.get_data()
-                    # Run Detection based on the selection
-                    if DETECTION_ID == 0:
-                        where = detection_utils.color_filter(image_ocv, VISUAL)
-                    elif DETECTION_ID == 1:
-                        image_rgb = cv2.cvtColor(image_ocv, cv2.COLOR_RGBA2RGB)
-                        if YOLO_VERSION == 0:
-                            x1,x2,y1,y2 = detection_utils.retrained_YOLOv8_v1(image_rgb, model, VISUAL)
-                        else:
-                            x1,x2,y1,y2 = detection_utils.retrained_YOLOv8_v2(image_rgb, model, VISUAL)
-                        if x1 is not None:
-                            x1,x2,y1,y2 = detection_utils.shrink_bbox_area([len(image_rgb), len(image_rgb[0])],x1,x2,y1,y2)
-                            where = detection_utils.conversion_bbox_mask(x1,x2,y1,y2)
-                        else: 
-                            where = ()
-                    if len(where)>0:
-                        # Masked PC and Confidence
-                        confidence_poi_all = confidence_np[where[0], where[1]].reshape((-1,1))
-                        pc_xyz_poi_all = pc_xyz_np[where[0], where[1], :].reshape((-1,3))
-                        pc_rgb_poi_all = pc_rgb_np[where[0], where[1]].reshape((-1,1))
-                        valid_ind = np.logical_not(np.isnan(pc_xyz_poi_all[:,0]))
+                    hsv_image = cv2.cvtColor(image_ocv, cv2.COLOR_BGR2HSV)
 
-                        # Throw out NAN
-                        confidence_poi = confidence_poi_all[valid_ind,:]
-                        pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
-                        pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
-                        # TF
-                        pc_xyz_poi = np.dot(T_BASE_TO_LEFT, np.append(pc_xyz_poi, np.ones((pc_xyz_poi.shape[0],1)), axis=1).transpose())[0:3,:].transpose()
+                    # Define the adjusted range for bright orange color in HSV
+                    lower_bound_orange = np.array([5, 75, 100])
+                    upper_bound_orange = np.array([30, 255, 255])
+                    # Define the adjusted range for green color in HSV
+                    lower_bound_green = np.array([50, 75, 100])
+                    upper_bound_green = np.array([85, 255, 255])
+
+                    # Create a binary mask for orange color in HSV
+                    mask_orange = cv2.inRange(hsv_image, lower_bound_orange, upper_bound_orange)
+                    mask_green = cv2.inRange(hsv_image, lower_bound_green, upper_bound_green)
+                    mask = mask_orange + mask_green
+                    # mask = mask_orange
+                    where = np.where(mask == 255)
+
+                    # DEBUG: Visualize masked image
+                    if VISUAL:
+                        image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
+                        #image_rgb = cv2.cvtColor(image_ocv, cv2.COLOR_RGBA2RGB)
+                        cv2.namedWindow('image1')
+                        cv2.imshow("image1", image_masked)
+                        #cv2.imshow("image1", image_rgb)
+                        cv2.waitKey(1)
+
+                    # Masked PC and Confidence
+                    confidence_poi_all = confidence_np[where[0], where[1]].reshape((-1,1))
+                    pc_xyz_poi_all = pc_xyz_np[where[0], where[1], :].reshape((-1,3))
+                    pc_rgb_poi_all = pc_rgb_np[where[0], where[1]].reshape((-1,1))
+                    valid_ind = np.logical_not(np.isnan(pc_xyz_poi_all[:,0]))
+
+                    # Throw out NAN
+                    confidence_poi = confidence_poi_all[valid_ind,:]
+                    pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
+                    pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
+                    # TF
+                    pc_xyz_poi = np.dot(T_BASE_TO_LEFT, np.append(pc_xyz_poi, np.ones((pc_xyz_poi.shape[0],1)), axis=1).transpose())[0:3,:].transpose()
 
                 elif METHOD_ID == 2:
                     continue
@@ -415,7 +415,7 @@ def main():
                     rospy.logdebug("TIME SPENT IN DETECTION:  {}".format(stamp_2-stamp_1))
 
                 # Bounding box filtering
-                if len(where)>0 and BOUNDING_FILTER:
+                if BOUNDING_FILTER:
                     # Throw out the pc that's not in the spatial limit
                     ind_x = np.intersect1d(np.where(pc_xyz_poi[:,0] > bbox_x_min)[0], np.where(pc_xyz_poi[:,0] < bbox_x_max)[0])
                     ind_y = np.intersect1d(np.where(pc_xyz_poi[:,1] > bbox_y_min)[0], np.where(pc_xyz_poi[:,1] < bbox_y_max)[0])
@@ -428,7 +428,7 @@ def main():
 
 
                 # Outlier rejection
-                if len(where)>0 and OUTLIER_REJECT:
+                if OUTLIER_REJECT:
                     x_mean = np.mean(pc_xyz_poi[:,0])
                     y_mean = np.mean(pc_xyz_poi[:,1])
                     z_mean = np.mean(pc_xyz_poi[:,2])
@@ -451,120 +451,118 @@ def main():
                     rospy.logdebug("TIME SPENT IN FILTERING:  {}".format(stamp_3-stamp_2))
                     # continue
 
-                if len(where)>0:
-                    # Only continue if there are more than MIN_PIXEL points (30+)
-                    if pc_xyz_poi.shape[0] < MIN_PIXEL:
-                        continue
+                # Only continue if there are more than MIN_PIXEL points (30+)
+                if pc_xyz_poi.shape[0] < MIN_PIXEL:
+                    continue
+
+                # Calculate the mean of the depth
+                mean_X = np.mean(pc_xyz_poi[:,0])
+                mean_Y = np.mean(pc_xyz_poi[:,1])
+                mean_Z = np.mean(pc_xyz_poi[:,2])
+                mean_Conf = np.mean(confidence_poi[:])
+                if DEBUG:
+                    print("Mean Depth: {}".format(mean_X))
+
+                # Check if the point is inside the bounding box
+                # if bbox_x_min <= mean_X <= bbox_x_max and \
+                #    bbox_y_min <= mean_Y <= bbox_y_max and \
+                #    bbox_z_min <= mean_Z <= bbox_z_max:
+                    # Point is inside the bounding box, process it
                 
-                
-                    # Calculate the mean of the depth
-                    mean_X = np.mean(pc_xyz_poi[:,0])
-                    mean_Y = np.mean(pc_xyz_poi[:,1])
-                    mean_Z = np.mean(pc_xyz_poi[:,2])
-                    mean_Conf = np.mean(confidence_poi[:])
-                    if DEBUG:
-                        print("Mean Depth: {}".format(mean_X))
+                if mean_X != 0 and mean_X < DIST_THRESHOLD:
+                # if mean_X != 0 and mean_X < DIST_THRESHOLD and mean_Conf < 50:
+                    if SAVE_IMG:
+                        image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
+                        img_mk_path = img_path + "img_mk_" + str(count) + ".jpg"
+                        img_og_path = img_path + "img_og_" + str(count) + ".jpg"
+                        cv2.imwrite(img_mk_path, image_masked)
+                        cv2.imwrite(img_og_path, image_ocv)
 
-                    # Check if the point is inside the bounding box
-                    # if bbox_x_min <= mean_X <= bbox_x_max and \
-                    #    bbox_y_min <= mean_Y <= bbox_y_max and \
-                    #    bbox_z_min <= mean_Z <= bbox_z_max:
-                        # Point is inside the bounding box, process it
-                    
-                    if mean_X != 0 and mean_X < DIST_THRESHOLD:
-                    # if mean_X != 0 and mean_X < DIST_THRESHOLD and mean_Conf < 50:
-                        if SAVE_IMG:
-                            image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
-                            img_mk_path = img_path + "img_mk_" + str(count) + ".jpg"
-                            img_og_path = img_path + "img_og_" + str(count) + ".jpg"
-                            cv2.imwrite(img_mk_path, image_masked)
-                            cv2.imwrite(img_og_path, image_ocv)
+                    # Record Time stamps
+                    count = count + 1
+                    if count == 1:
+                        t = 0.0
+                        stamps.append(stamp_temp)
+                    else:
+                        t = stamp_temp-stamps[0]
+                        stamps.append(stamp_temp)
 
-                        # Record Time stamps
-                        count = count + 1
-                        if count == 1:
-                            t = 0.0
-                            stamps.append(stamp_temp)
-                        else:
-                            t = stamp_temp-stamps[0]
-                            stamps.append(stamp_temp)
+                    # Storing Data
+                    print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}, Conf: {:.3f}".format(t, mean_X, mean_Y, mean_Z, mean_Conf))
+                    measurements.append((t, mean_X, mean_Y, mean_Z))
+                    pc_xyz_list.append(pc_xyz_poi)
+                    pc_rgb_list.append(pc_rgb_poi)
 
-                        # Storing Data
-                        print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}, Conf: {:.3f}".format(t, mean_X, mean_Y, mean_Z, mean_Conf))
-                        measurements.append((t, mean_X, mean_Y, mean_Z))
-                        pc_xyz_list.append(pc_xyz_poi)
-                        pc_rgb_list.append(pc_rgb_poi)
+                # Collected Enough Points
+                if count >= Num_Frame:
+                    # Perform trajectory estimation here using the measurements
+                    estimated_params = estimate_trajectory(measurements)
+                    print(f"Estimated Parameters (XYZ,VxVyVz): \n{estimated_params}")
 
-                    # Collected Enough Points
-                    if count >= Num_Frame:
-                        # Perform trajectory estimation here using the measurements
-                        estimated_params = estimate_trajectory(measurements)
-                        print(f"Estimated Parameters (XYZ,VxVyVz): \n{estimated_params}")
+                    # Publish Projectile Msg            
+                    projectile_msg = Projectile()
+                    header = std_msgs.msg.Header()
+                    header.stamp = rospy.Time.now()
+                    header.frame_id = 'odom_combined'
+                    projectile_msg.header = header
+                    projectile_msg.object_id = 0
 
-                        # Publish Projectile Msg            
-                        projectile_msg = Projectile()
-                        header = std_msgs.msg.Header()
-                        header.stamp = rospy.Time.now()
-                        header.frame_id = 'odom_combined'
-                        projectile_msg.header = header
-                        projectile_msg.object_id = 0
+                    t_perc = rospy.Time.now().to_sec() - stamps[0]
+                    t_squared = t_perc**2
+                    x = estimated_params[0] + estimated_params[3]*t_perc
+                    y = estimated_params[1] + estimated_params[4]*t_perc
+                    z = estimated_params[2] + estimated_params[5]*t_perc - 0.5 * 9.81 * t_squared
+                    vz = estimated_params[5] - 9.81 * t_perc
+                    # x = x0 + vx0 * t
+                    # y = y0 + vy0 * t
+                    # z = z0 + vz0 * t - 0.5 * 9.81 * t_squared
+                    # Setting the variable in the message to computed results
+                    projectile_msg.position.x = x
+                    projectile_msg.position.y = y
+                    projectile_msg.position.z = z
+                    projectile_msg.velocity.x = estimated_params[3]
+                    projectile_msg.velocity.y = estimated_params[4]
+                    projectile_msg.velocity.z = vz
 
-                        t_perc = rospy.Time.now().to_sec() - stamps[0]
-                        t_squared = t_perc**2
-                        x = estimated_params[0] + estimated_params[3]*t_perc
-                        y = estimated_params[1] + estimated_params[4]*t_perc
-                        z = estimated_params[2] + estimated_params[5]*t_perc - 0.5 * 9.81 * t_squared
-                        vz = estimated_params[5] - 9.81 * t_perc
-                        # x = x0 + vx0 * t
-                        # y = y0 + vy0 * t
-                        # z = z0 + vz0 * t - 0.5 * 9.81 * t_squared
-                        # Setting the variable in the message to computed results
-                        projectile_msg.position.x = x
-                        projectile_msg.position.y = y
-                        projectile_msg.position.z = z
-                        projectile_msg.velocity.x = estimated_params[3]
-                        projectile_msg.velocity.y = estimated_params[4]
-                        projectile_msg.velocity.z = vz
-
-                        # projectile_msg.position.x = estimated_params[0]
-                        # projectile_msg.position.y = estimated_params[1]
-                        # projectile_msg.position.z = estimated_params[2]
-                        # projectile_msg.velocity.x = estimated_params[3]
-                        # projectile_msg.velocity.y = estimated_params[4]
-                        # projectile_msg.velocity.z = estimated_params[5]
+                    # projectile_msg.position.x = estimated_params[0]
+                    # projectile_msg.position.y = estimated_params[1]
+                    # projectile_msg.position.z = estimated_params[2]
+                    # projectile_msg.velocity.x = estimated_params[3]
+                    # projectile_msg.velocity.y = estimated_params[4]
+                    # projectile_msg.velocity.z = estimated_params[5]
 
 
-                        if PUBLISH_PROJ:
-                            # global measurements, stamps, finish_stamp, pc_xyz_list, pc_rgb_list
+                    if PUBLISH_PROJ:
+                        # global measurements, stamps, finish_stamp, pc_xyz_list, pc_rgb_list
 
-                            projectile_msg_pub.publish(projectile_msg)
-                            finish_stamp = rospy.Time.now().to_sec()
-                            rospy.logwarn("Publishing projectile!")
-                            print(projectile_msg)
+                        projectile_msg_pub.publish(projectile_msg)
+                        finish_stamp = rospy.Time.now().to_sec()
+                        rospy.logwarn("Publishing projectile!")
+                        print(projectile_msg)
 
-                            # Visualization Publishing and Time profiling
-                            if count == Num_Frame:
-                                visualize_projectile_points(measurements, projectile_marker_pub)
-                                visualize_collected_pc(pc_xyz_list, pc_rgb_list, pc_pub)
+                        # Visualization Publishing and Time profiling
+                        if count == Num_Frame:
+                            visualize_projectile_points(measurements, projectile_marker_pub)
+                            visualize_collected_pc(pc_xyz_list, pc_rgb_list, pc_pub)
 
-                                # Summary of the run
-                                print("*******************************************************")
-                                for ind, frame in enumerate(measurements):
-                                    print("Point {}: Number of Pixels = {}".format(ind, pc_xyz_list[ind].shape[0]))
-                                    print("Time Stamp: {}".format(stamps[ind]))
-                                    print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}".format(frame[0], frame[1], frame[2], frame[3]))
-                                print("*******************************************************")
-                                print("Projectile Publish Stamp: {}".format(finish_stamp))
-                                print("Time SPENT in Perception: {}".format(finish_stamp - stamps[0]) )
-                            
-                            # Resetting variables
-                            measurements.clear()
-                            stamps.clear()
-                            finish_stamp = 0
-                            pc_xyz_list.clear()
-                            pc_rgb_list.clear()
-                            count = 0
-                            time.sleep(5)
+                            # Summary of the run
+                            print("*******************************************************")
+                            for ind, frame in enumerate(measurements):
+                                print("Point {}: Number of Pixels = {}".format(ind, pc_xyz_list[ind].shape[0]))
+                                print("Time Stamp: {}".format(stamps[ind]))
+                                print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}".format(frame[0], frame[1], frame[2], frame[3]))
+                            print("*******************************************************")
+                            print("Projectile Publish Stamp: {}".format(finish_stamp))
+                            print("Time SPENT in Perception: {}".format(finish_stamp - stamps[0]) )
+                        
+                        # Resetting variables
+                        measurements.clear()
+                        stamps.clear()
+                        finish_stamp = 0
+                        pc_xyz_list.clear()
+                        pc_rgb_list.clear()
+                        count = 0
+                        time.sleep(5)
 
                 # Code to pick color on-click on image
                 # def click_event(event, x, y,  flags, params):
