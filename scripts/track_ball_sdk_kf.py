@@ -559,14 +559,23 @@ def main():
                             img_og_path = img_path + "img_og_" + str(count) + ".jpg"
                             cv2.imwrite(img_mk_path, image_masked)
                             cv2.imwrite(img_og_path, image_ocv)
-
-                        # Record Time stamps
-                        count = count + 1
-                        if count == 1:
-                            t = 0.0
-                            stamps.append(stamp_temp)
+                        if not KF:
+                            # Record Time stamps
+                            count = count + 1
+                            if count == 1:
+                                t = 0.0
+                                stamps.append(stamp_temp)
+                            else:
+                                t = stamp_temp-stamps[0]
+                                stamps.append(stamp_temp)
                         else:
-                            t = stamp_temp-stamps[0]
+                            if mean_X < 4.5:
+                                count = count + 1
+
+                            if not stamps:
+                                t = 0.0
+                            else:
+                                t = stamp_temp-stamps[0]
                             stamps.append(stamp_temp)
 
                         # Storing Data
@@ -580,7 +589,7 @@ def main():
                         # Perform trajectory estimation here using the measurements
                         if KF:
                             # Kalman Filter
-                            estimated_params = kf_prediction(measurements, future_dt= 0.02)
+                            estimated_params = kf_prediction(measurements, future_dt= 0.01)
                         else:
                             # Traditional Physics
                             estimated_params = estimate_trajectory(measurements)
@@ -596,29 +605,27 @@ def main():
                         projectile_msg.header = header
                         projectile_msg.object_id = 0
 
-                        t_perc = rospy.Time.now().to_sec() - stamps[0]
-                        t_squared = t_perc**2
-                        x = estimated_params[0] + estimated_params[3]*t_perc
-                        y = estimated_params[1] + estimated_params[4]*t_perc
-                        z = estimated_params[2] + estimated_params[5]*t_perc - 0.5 * 9.81 * t_squared
-                        vz = estimated_params[5] - 9.81 * t_perc
-                        # x = x0 + vx0 * t
-                        # y = y0 + vy0 * t
-                        # z = z0 + vz0 * t - 0.5 * 9.81 * t_squared
-                        # Setting the variable in the message to computed results
-                        projectile_msg.position.x = x
-                        projectile_msg.position.y = y
-                        projectile_msg.position.z = z
-                        projectile_msg.velocity.x = estimated_params[3]
-                        projectile_msg.velocity.y = estimated_params[4]
-                        projectile_msg.velocity.z = vz
-
-                        # projectile_msg.position.x = estimated_params[0]
-                        # projectile_msg.position.y = estimated_params[1]
-                        # projectile_msg.position.z = estimated_params[2]
-                        # projectile_msg.velocity.x = estimated_params[3]
-                        # projectile_msg.velocity.y = estimated_params[4]
-                        # projectile_msg.velocity.z = estimated_params[5]
+                        if not KF:
+                            t_perc = rospy.Time.now().to_sec() - stamps[0]
+                            t_squared = t_perc**2
+                            x = estimated_params[0] + estimated_params[3]*t_perc
+                            y = estimated_params[1] + estimated_params[4]*t_perc
+                            z = estimated_params[2] + estimated_params[5]*t_perc - 0.5 * 9.81 * t_squared
+                            vz = estimated_params[5] - 9.81 * t_perc
+                            # Setting the variable in the message to computed results
+                            projectile_msg.position.x = x
+                            projectile_msg.position.y = y
+                            projectile_msg.position.z = z
+                            projectile_msg.velocity.x = estimated_params[3]
+                            projectile_msg.velocity.y = estimated_params[4]
+                            projectile_msg.velocity.z = vz
+                        else:
+                            projectile_msg.position.x = estimated_params[0]
+                            projectile_msg.position.y = estimated_params[1]
+                            projectile_msg.position.z = estimated_params[2]
+                            projectile_msg.velocity.x = estimated_params[3]
+                            projectile_msg.velocity.y = estimated_params[4]
+                            projectile_msg.velocity.z = estimated_params[5]
 
 
                         if PUBLISH_PROJ:
