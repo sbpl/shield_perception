@@ -31,7 +31,7 @@ def color_filter(image_ocv, VISUAL):
     if VISUAL:
         image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
         cv2.namedWindow('image1')
-        cv2.imshow("image1", image_masked)
+        # cv2.imshow("image1", image_masked)
         cv2.waitKey(1)
     return where
 
@@ -107,7 +107,7 @@ def retrained_YOLOv8_v1(image, model, VISUAL):
                 label_name = map[labels[p]]
                 cv2.putText(image, label_name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
                 image = cv2.resize(image, (960, 540))  
-                cv2.imshow("Retrained YOLOv8 ", image)
+                # cv2.imshow("Retrained YOLOv8 ", image)
     return x1,x2,y1,y2
 
 
@@ -138,7 +138,7 @@ def retrained_YOLOv8_v2(image, model, VISUAL):
                 label_name = map[labels[p]]
                 cv2.putText(image, label_name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
                 image = cv2.resize(image, (960, 540))  
-                cv2.imshow("Retrained YOLOv8 ", image)
+                # cv2.imshow("Retrained YOLOv8 ", image)
     return x1,x2,y1,y2
 
 def center_xyz(list_,r = 0.06):
