@@ -509,7 +509,8 @@ def main():
                         projectile_msg.header = header
                         projectile_msg.object_id = 0
 
-                        t_perc = rospy.Time.now().to_sec() - stamps[0]
+                        # t_perc = rospy.Time.now().to_sec() - stamps[0]
+                        t_perc = stamp_temp - stamps[0]
                         t_squared = t_perc**2
                         x = estimated_params[0] + estimated_params[3]*t_perc
                         y = estimated_params[1] + estimated_params[4]*t_perc
