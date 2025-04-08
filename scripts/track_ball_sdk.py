@@ -31,7 +31,7 @@ MIN_PIXEL=15
 PUBLISH_PROJ=1
 METHOD_ID=1         #0 = native bounding box (aborted), 1 = color detection, 2 = open3d bounding box (aborted)
 DEBUG=0
-VISUAL=1
+VISUAL=0
 SAVE_IMG=0  
 RES=0 # 0 - VGA, 1 - 720p
 LIGHT_CONDITION=3   #0 = no lights, 1 = cam lights, 2 = left lights, 3 = ceil lights, 4 = cam + ceil, 5 = left + ceil

@@ -50,7 +50,7 @@ else:
 # max_radius = 30  # Maximum radius of the ball
 
 # Global Vars
-Num_Frame = 8
+Num_Frame = 6 # 8
 measurements = []
 stamps = []
 finish_stamp = 0
