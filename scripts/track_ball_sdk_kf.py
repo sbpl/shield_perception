@@ -79,8 +79,8 @@ def kf_prediction(measurements, future_dt= 0.02):
     kf.H = np.array([[1, 0, 0, 0, 0, 0],
                     [0, 1, 0, 0, 0, 0],
                     [0, 0, 1, 0, 0, 0]])
-    # Process noise covariance (Q)
-    kf.Q = np.eye(6) *0.01
+    # Process noise covariance (Q) - Higher values for velocity components
+    kf.Q = np.diag([0.01, 0.01, 0.01, 1.0, 1.0, 1.0])
     # Measurement noise covariance (R)
     kf.R = np.eye(3) *0.05
     # Covariance matrix (P)
