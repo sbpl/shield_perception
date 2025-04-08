@@ -60,7 +60,7 @@ pc_rgb_list = []
 
 ##########################################################################
 #############################Function#####################################
-def kf_prediction(measurements, future_dt= 0.02):
+def kf_prediction(measurements, future_dt= 0.0):
     t_list = np.array([p[0] for p in measurements])
     positions = np.array([[row[1], row[2], row[3]] for row in measurements])
     kf = KalmanFilter(dim_x=6, dim_z=3,dim_u=1)
@@ -137,7 +137,7 @@ def kf_prediction(measurements, future_dt= 0.02):
         pred_x_list.append(kf.x[0, 0])
         pred_y_list.append(kf.x[1, 0])
         pred_z_list.append(kf.x[2, 0])
-    '''
+    
     
     # PREDICTION POINT
     kf.F = np.array([[1, 0, 0, future_dt, 0, 0],
@@ -149,7 +149,9 @@ def kf_prediction(measurements, future_dt= 0.02):
     kf.B[-1] = [future_dt]
     kf.predict(u=np.array([[-g]]))
 
-    return [kf.x[0, 0], kf.x[1, 0], kf.x[2, 0],kf.x[3,0], kf.x[4,0],kf.x[5,0]]
+
+    return [kf.x[0, 0], kf.x[1, 0], kf.x[2, 0],kf.x[3,0], kf.x[4,0],kf.x[5,0]]'''
+    return [kf_positions[-1,0],kf_positions[-1,1],kf_positions[-1,2],kf_velocities[-1,0],kf_velocities[-1,1],kf_velocities[-1,2]]
 
 
 ## Visualization
