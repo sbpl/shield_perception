@@ -16,6 +16,7 @@ from visualization_msgs.msg import MarkerArray, Marker
 import detection_utils
 from ultralytics import YOLO
 import pdb
+from collections import deque
 
 # Relative Imports
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),"camera_calibration"))
@@ -26,7 +27,7 @@ from constants import *
 DETECTION_ID = 1 # 0 - Color filter, 1 - retrained YOLOv8
 OUTLIER_REJECT=1
 BOUNDING_FILTER=1
-DIST_THRESHOLD=4.5
+DIST_THRESHOLD=10
 MIN_PIXEL=15
 PUBLISH_PROJ=1
 METHOD_ID=1         #0 = native bounding box (aborted), 1 = color detection, 2 = open3d bounding box (aborted)
@@ -48,8 +49,9 @@ else:
 # max_radius = 30  # Maximum radius of the ball
 
 # Global Vars
-Num_Frame = 8
-measurements = []
+Num_Frame = 4
+#measurements = []
+measurements = deque(maxlen=4)
 stamps = []
 finish_stamp = 0
 pc_xyz_list = []
@@ -95,6 +97,9 @@ def xyzrgb_array_to_pointcloud2(points, colors, stamp=None, frame_id=None, seq=N
 # Function to publish points used to estimate the projectile
 def visualize_projectile_points( bpes, pmmsg ):
     markers = MarkerArray()
+    delete_all_marker = Marker()
+    delete_all_marker.action = Marker.DELETEALL
+    markers.markers.append(delete_all_marker)
     for ind, es in enumerate(bpes):
         marker = Marker()
         marker.header.frame_id = "odom_combined"
@@ -454,6 +459,13 @@ def main():
                 if len(where)>0:
                     # Only continue if there are more than MIN_PIXEL points (30+)
                     if pc_xyz_poi.shape[0] < MIN_PIXEL:
+                        # Resetting variables
+                        measurements.clear()
+                        stamps.clear()
+                        finish_stamp = 0
+                        pc_xyz_list.clear()
+                        pc_rgb_list.clear()
+                        count = 0
                         continue
                 
                 
@@ -543,7 +555,7 @@ def main():
                             print(projectile_msg)
 
                             # Visualization Publishing and Time profiling
-                            if count == Num_Frame:
+                            if count >= Num_Frame:
                                 visualize_projectile_points(measurements, projectile_marker_pub)
                                 visualize_collected_pc(pc_xyz_list, pc_rgb_list, pc_pub)
 
@@ -557,14 +569,7 @@ def main():
                                 print("Projectile Publish Stamp: {}".format(finish_stamp))
                                 print("Time SPENT in Perception: {}".format(finish_stamp - stamps[0]) )
                             
-                            # Resetting variables
-                            measurements.clear()
-                            stamps.clear()
-                            finish_stamp = 0
-                            pc_xyz_list.clear()
-                            pc_rgb_list.clear()
-                            count = 0
-                            time.sleep(5)
+
 
                 # Code to pick color on-click on image
                 # def click_event(event, x, y,  flags, params):

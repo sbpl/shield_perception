@@ -17,6 +17,7 @@ from visualization_msgs.msg import MarkerArray, Marker
 import detection_utils
 from ultralytics import YOLO
 import pdb
+from collections import deque
 
 # Relative Imports
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),"camera_calibration"))
@@ -28,7 +29,7 @@ DETECTION_ID = 1 # 0 - Color filter, 1 - retrained YOLOv8
 KF = 1 # 0 - traditional physics to predict, 1 - kalman filter to predict
 OUTLIER_REJECT=1
 BOUNDING_FILTER=1
-DIST_THRESHOLD=7
+DIST_THRESHOLD=10
 MIN_PIXEL=15
 PUBLISH_PROJ=1
 METHOD_ID=1         #0 = native bounding box (aborted), 1 = color detection, 2 = open3d bounding box (aborted)
@@ -50,8 +51,9 @@ else:
 # max_radius = 30  # Maximum radius of the ball
 
 # Global Vars
-Num_Frame = 6 # 8
+Num_Frame = 4 # 8
 measurements = []
+measurements = deque(maxlen=4)
 stamps = []
 finish_stamp = 0
 pc_xyz_list = []
@@ -74,7 +76,7 @@ def kf_prediction(measurements, future_dt= 0.0):
                     [0, 0, 0, 0, 1, 0],
                     [0, 0, 0, 0, 0, 1]])
     # Control Matrix (B)
-    kf.B = np.array([[0], [0], [0], [0], [0], [dt0]])
+    kf.B = np.array([[0], [0], [dt0**2], [0], [0], [dt0]])
     # Measurement Matrix (H) - Only position measured
     kf.H = np.array([[1, 0, 0, 0, 0, 0],
                     [0, 1, 0, 0, 0, 0],
@@ -105,6 +107,7 @@ def kf_prediction(measurements, future_dt= 0.0):
                     [0, 0, 0, 0, 0, 1]])
         
         kf.B[-1] = [dt]
+        kf.B[2]= [dt**2]
         
         kf.predict(u=np.array([[-g]]))
         kf.update(positions[i].reshape(3, 1))
@@ -191,6 +194,9 @@ def xyzrgb_array_to_pointcloud2(points, colors, stamp=None, frame_id=None, seq=N
 # Function to publish points used to estimate the projectile
 def visualize_projectile_points( bpes, pmmsg ):
     markers = MarkerArray()
+    delete_all_marker = Marker()
+    delete_all_marker.action = Marker.DELETEALL
+    markers.markers.append(delete_all_marker)
     for ind, es in enumerate(bpes):
         marker = Marker()
         marker.header.frame_id = "odom_combined"
@@ -537,6 +543,14 @@ def main():
 
                     # Only continue if there are more than MIN_PIXEL points (30+)
                     if pc_xyz_poi.shape[0] < MIN_PIXEL:
+                        # Resetting variables
+                        measurements.clear()
+                        stamps.clear()
+                        finish_stamp = 0
+                        pc_xyz_list.clear()
+                        pc_rgb_list.clear()
+                        count = 0
+                        #time.sleep(5)
                         continue
                 
                     # Calculate the mean of the depth
@@ -571,7 +585,7 @@ def main():
                                 t = stamp_temp-stamps[0]
                                 stamps.append(stamp_temp)
                         else:
-                            if mean_X < 4.5:
+                            if mean_X < 10:
                                 count = count + 1
 
                             if not stamps:
@@ -639,7 +653,7 @@ def main():
                             print(projectile_msg)
 
                             # Visualization Publishing and Time profiling
-                            if count == Num_Frame:
+                            if count >= Num_Frame:
                                 visualize_projectile_points(measurements, projectile_marker_pub)
                                 visualize_collected_pc(pc_xyz_list, pc_rgb_list, pc_pub)
 
@@ -652,15 +666,8 @@ def main():
                                 print("*******************************************************")
                                 print("Projectile Publish Stamp: {}".format(finish_stamp))
                                 print("Time SPENT in Perception: {}".format(finish_stamp - stamps[0]) )
-                            
-                            # Resetting variables
-                            measurements.clear()
-                            stamps.clear()
-                            finish_stamp = 0
-                            pc_xyz_list.clear()
-                            pc_rgb_list.clear()
-                            count = 0
-                            time.sleep(5)
+
+
 
                 # Code to pick color on-click on image
                 # def click_event(event, x, y,  flags, params):
