@@ -51,9 +51,9 @@ else:
 # max_radius = 30  # Maximum radius of the ball
 
 # Global Vars
-Num_Frame = 4 # 8
+Num_Frame = 5 # 8
 measurements = []
-measurements = deque(maxlen=4)
+measurements = deque(maxlen=5)
 stamps = []
 finish_stamp = 0
 pc_xyz_list = []
