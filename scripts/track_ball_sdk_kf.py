@@ -29,8 +29,8 @@ DETECTION_ID = 1 # 0 - Color filter, 1 - retrained YOLOv8
 KF = 1 # 0 - traditional physics to predict, 1 - kalman filter to predict
 OUTLIER_REJECT=1
 BOUNDING_FILTER=1
-DIST_THRESHOLD=10
-MIN_PIXEL=15
+DIST_THRESHOLD=9
+MIN_PIXEL=30
 PUBLISH_PROJ=1
 METHOD_ID=1         #0 = native bounding box (aborted), 1 = color detection, 2 = open3d bounding box (aborted)
 DEBUG=0
@@ -51,7 +51,7 @@ else:
 # max_radius = 30  # Maximum radius of the ball
 
 # Global Vars
-Num_Frame = 5 # 8
+Num_Frame = 4 # 8
 measurements = []
 measurements = deque(maxlen=5)
 stamps = []
@@ -362,7 +362,7 @@ def main():
     confidence_map = sl.Mat()
 
     count = 0
-
+    reset_count = 0
     if SAVE_IMG:
         img_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),"camera_calibration/color_data/")
 
@@ -544,14 +544,18 @@ def main():
                     # Only continue if there are more than MIN_PIXEL points (30+)
                     if pc_xyz_poi.shape[0] < MIN_PIXEL:
                         # Resetting variables
-                        measurements.clear()
-                        stamps.clear()
-                        finish_stamp = 0
-                        pc_xyz_list.clear()
-                        pc_rgb_list.clear()
-                        count = 0
-                        #time.sleep(5)
+                        reset_count += 1
+                        if(reset_count >= 5):
+                            measurements.clear()
+                            stamps.clear()
+                            finish_stamp = 0
+                            pc_xyz_list.clear()
+                            pc_rgb_list.clear()
+                            count = 0
+                            reset_count = 0
                         continue
+                    else:
+                        reset_count = 0
                 
                     # Calculate the mean of the depth
                     mean_X = np.mean(pc_xyz_poi[:,0])
@@ -585,7 +589,7 @@ def main():
                                 t = stamp_temp-stamps[0]
                                 stamps.append(stamp_temp)
                         else:
-                            if mean_X < 10:
+                            if mean_X < DIST_THRESHOLD:
                                 count = count + 1
 
                             if not stamps:
