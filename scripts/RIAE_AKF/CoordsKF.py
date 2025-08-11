@@ -47,14 +47,17 @@ class CoordsKF:
         self._riae_inited = True
 
     def riae_step(self, t_k, z_k):
-        """Process ONE measurement at time t_k with z_k=(x,y,z)."""
+        """
+        Process ONE measurement at time t_k with z_k=(x,y,z).
+        Return current mean and state covariance matrix.
+        """
         assert self._riae_inited, "Initiate RIAE AKF."
         z = np.asarray(z_k, float).reshape(3,1)
         H = self.kf.H
 
         if self._last_time is None:
             self._last_time = float(t_k)
-            return self.kf.x.flatten()
+            return self.kf.x.flatten()[:3], self.kf.P
 
         dt = float(t_k) - self._last_time
         self._last_time = float(t_k)
@@ -117,31 +120,34 @@ class CoordsKF:
         if self._robust_update:
             z = (H @ self.kf.x) + innovation_rev
         self.kf.update(z)
+        return self.kf.x.flatten()[:3], self.kf.P
 
-        return self.kf.x.flatten()
-
-    def riae_run(self, measurements, future_dt=0.02, **riae_kwargs):
+    def riae_run(self, measurements, **riae_kwargs):
         self.riae_init(**riae_kwargs)
-        self.kf_coords = []
+        mean_list = []
+        state_cov_list = []
+        t_list = []
         for t, x, y, z in measurements:
-            xk = self.riae_step(t, [x,y,z])
-            self.kf_coords.append(xk[:3])
-        self.kf_coords = np.array(self.kf_coords)
+            # For each step, we need to predict and update measurements
+            cur_mean, cur_covriance = self.riae_step(t, [x,y,z])
+            mean_list.append(cur_mean.tolist())
+            state_cov_list.append(cur_covriance)
+            t_list.append(t)
+        #self.kf_predict(0.02, self.kf_coords, num_future_steps = 200)
 
-        # one-step lookahead
-        dtf = float(future_dt)
-        self.kf.F = np.array([[1,0,0, dtf,0,0],
-                              [0,1,0, 0,dtf,0],
-                              [0,0,1, 0,0,dtf],
-                              [0,0,0, 1,0,0],
-                              [0,0,0, 0,1,0],
-                              [0,0,0, 0,0,1]])
-        self.kf.B[-1] = [dtf]
-        self.kf.B[2]  = [0.5*dtf**2]
-        self.kf.predict(u=np.array([[-self.g]]))
-
-        return [self.kf.x[0,0], self.kf.x[1,0], self.kf.x[2,0],
-                self.kf.x[3,0], self.kf.x[4,0], self.kf.x[5,0]]
+        return t_list, mean_list, state_cov_list
+    
+    def kf_predict(self, dt, cal_traj, num_future_steps):
+        self.kf.F = np.array([[1, 0, 0, dt, 0, 0],
+                        [0, 1, 0, 0, dt, 0],
+                        [0, 0, 1, 0, 0, dt],
+                        [0, 0, 0, 1, 0, 0],
+                        [0, 0, 0, 0, 1, 0],
+                        [0, 0, 0, 0, 0, 1]])
+        self.kf.B = np.array([[0], [0], [0.5 * dt**2], [0], [0], [dt]])
+        for i in range(num_future_steps):
+            self.kf.predict(u=np.array([[-self.g]]))
+            cal_traj = np.vstack((cal_traj, [self.kf.x[0, 0], self.kf.x[1, 0], self.kf.x[2, 0]]))
 
     @staticmethod
     def _chi2_threshold(df, conf=0.99):
