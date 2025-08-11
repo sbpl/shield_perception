@@ -15,7 +15,7 @@ with open(file_path, "r") as f:
     i = 0
     for row in gt_time_coords.values():
         # For one throw
-        if i != -1:#== 2:  
+        if i == 2:  
             print("i", i)
             row = np.array(row)
             measurements = row[:,0:4]
