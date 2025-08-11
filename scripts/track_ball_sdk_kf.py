@@ -581,7 +581,7 @@ def main():
                             stamps.append(stamp_temp)
 
                         # Storing Data
-                        print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}, Conf: {:.3f}".format(t, mean_X, mean_Y, mean_Z, mean_Conf))
+                        #print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}, Conf: {:.3f}".format(t, mean_X, mean_Y, mean_Z, mean_Conf))
                         measurements.append((t, mean_X, mean_Y, mean_Z))
                         pc_xyz_list.append(pc_xyz_poi)
                         pc_rgb_list.append(pc_rgb_poi)
