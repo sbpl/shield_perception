@@ -133,11 +133,18 @@ class CoordsKF:
             mean_list.append(cur_mean.tolist())
             state_cov_list.append(cur_covriance)
             t_list.append(t)
+
         #self.kf_predict(0.02, self.kf_coords, num_future_steps = 200)
 
         return t_list, mean_list, state_cov_list
     
     def kf_predict(self, dt, cal_traj, num_future_steps):
+        """
+        This is the prediction function to predict object's future states within certain time period.
+        dt: delta t which is the time step 
+        num_future_steps: how may future steps it has
+        dt*num_future_steps: how long it is after the current time.
+        """
         self.kf.F = np.array([[1, 0, 0, dt, 0, 0],
                         [0, 1, 0, 0, dt, 0],
                         [0, 0, 1, 0, 0, dt],
