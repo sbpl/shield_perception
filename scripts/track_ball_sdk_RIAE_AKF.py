@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+"""
+Note: This file only deals with RIAE-AKF. 
+Please don't use this file to run methods that are not using RIAE-AKF.
+You could run previous file such as 'track_ball_sdk_kf.py' or 'track_ball_sdk.py' to see performance of other prediction.
+"""
 import cv2
 import numpy as np
 # import open3d as o3d
@@ -44,13 +49,6 @@ if YOLO_VERSION == 0:
     model = YOLO("YOLOv8_weights.pt")
 else:
     model = YOLO("YOLOv8_weights_2.pt")
-    
-"""
-Note: This file only deals with RIAE-AKF. 
-Please don't use this file to run methods that are not using RIAE-AKF.
-This file is for paper experiment evaluation part only. 
-You could run previous file such as 'track_ball_sdk_kf.py' or 'track_ball_sdk.py'.
-"""
 
 # Global Vars
 Num_Frame = 6 # 8
