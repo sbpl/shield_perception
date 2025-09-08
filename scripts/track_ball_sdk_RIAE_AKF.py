@@ -259,7 +259,7 @@ def main():
                 # continue
                 # Turning Data into np array
                 pc_xyz_np = point_cloud.get_data()[:,:,:3]
-                pc_rgb_np = point_cloud.get_data()[:,:,3]
+                #pc_rgb_np = point_cloud.get_data()[:,:,3]
                 #confidence_np = confidence_map.get_data()
                 
                 if DEBUG:
@@ -314,13 +314,13 @@ def main():
                         # Masked PC and Confidence
                         #confidence_poi_all = confidence_np[where[0], where[1]].reshape((-1,1))
                         pc_xyz_poi_all = pc_xyz_np[where[0], where[1], :].reshape((-1,3))
-                        pc_rgb_poi_all = pc_rgb_np[where[0], where[1]].reshape((-1,1))
+                        #pc_rgb_poi_all = pc_rgb_np[where[0], where[1]].reshape((-1,1))
                         valid_ind = np.logical_not(np.isnan(pc_xyz_poi_all[:,0]))
 
                         # Throw out NAN
                         #confidence_poi = confidence_poi_all[valid_ind,:]
                         pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
-                        pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
+                        #pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
                         # TF
                         pc_xyz_poi = np.dot(T_BASE_TO_LEFT, np.append(pc_xyz_poi, np.ones((pc_xyz_poi.shape[0],1)), axis=1).transpose())[0:3,:].transpose()
 
@@ -341,7 +341,7 @@ def main():
                         filtered_ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
 
                         pc_xyz_poi = pc_xyz_poi[filtered_ind,:]
-                        pc_rgb_poi = pc_rgb_poi[filtered_ind,:]
+                        #pc_rgb_poi = pc_rgb_poi[filtered_ind,:]
                         #confidence_poi = confidence_poi[filtered_ind,:]
 
                     # Outlier rejection
@@ -357,7 +357,7 @@ def main():
                         ind_z = np.intersect1d(np.where(pc_xyz_poi[:,2] > z_mean - 2*z_std)[0], np.where(pc_xyz_poi[:,2] < z_mean + 2*z_std)[0])
                         ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
                         pc_xyz_poi = pc_xyz_poi[ind,:]
-                        pc_rgb_poi = pc_rgb_poi[ind,:]
+                        #pc_rgb_poi = pc_rgb_poi[ind,:]
                         #confidence_poi = confidence_poi[ind,:]
 
                     # Only continue if there are more than MIN_PIXEL points (30+)
@@ -385,17 +385,17 @@ def main():
                         # For RIAE AKF, each point is given at each time stamp; we no longer need to wait until #Num_Frame measurements
                         if count == 0:  # Initial measurement
                             akf = CoordsAKF(stamp_temp, [mean_X,mean_Y,mean_Z])
-                            t = 0.0
+                            #t = 0.0
                         elif count == 1:
                             # Finish AKF setup
                             akf.init_velocity(stamp_temp, [mean_X,mean_Y,mean_Z])
                             akf.init_AKF()
-                            t = stamp_temp - stamps[0]
+                            #t = stamp_temp - stamps[0]
                         else:
                             # AKF step
                             mean, covP = akf.riae_step(stamp_temp, [mean_X,mean_Y,mean_Z])
-                            t = stamp_temp - stamps[0]
-                            measurements.append((t, mean_X, mean_Y, mean_Z))
+                            #t = stamp_temp - stamps[0]
+                            #measurements.append((t, mean_X, mean_Y, mean_Z))
                             #pc_xyz_list.append(pc_xyz_poi)
                             #pc_rgb_list.append(pc_rgb_poi)
                             print("Estimated Parameters Mean and Covariance:", mean, covP)
@@ -419,14 +419,14 @@ def main():
                             rospy.logwarn("Publishing meanCovariance msg!")
                             print(meanCovariance_msg)
                             
-
+                            '''
                             # Visualization Publishing and Time profiling
                             if count == Num_Frame:
                                 #visualize_projectile_points(measurements, projectile_marker_pub)
                                 #visualize_collected_pc(pc_xyz_list, pc_rgb_list, pc_pub)
 
                                 # Summary of the run
-                                '''
+                                
                                 print("*******************************************************")
                                 for ind, frame in enumerate(measurements):
                                     print("Point {}: Number of Pixels = {}".format(ind, pc_xyz_list[ind].shape[0]))
@@ -435,14 +435,22 @@ def main():
                                 print("*******************************************************")
                                 print("Projectile Publish Stamp: {}".format(finish_stamp))
                                 print("Time SPENT in Perception: {}".format(finish_stamp - stamps[0]) )
-                                '''
+                                
                             # Resetting variables
-                            measurements.clear()
+                            #measurements.clear()
                             stamps.clear()
                             finish_stamp = 0
                             #pc_xyz_list.clear()
                             #pc_rgb_list.clear()
                             count = 0
+                            time.sleep(5)
+                            '''
+
+                        if mean_X < 0.25: # within the outerdome 
+                            # Resetting variables
+                            stamps.clear()
+                            count = 0
+                            del akf
                             time.sleep(5)
 
     except KeyboardInterrupt:
