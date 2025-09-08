@@ -2,31 +2,39 @@ import numpy as np
 from collections import deque
 from filterpy.kalman import KalmanFilter
 
-class CoordsKF:
-    def __init__(self, dt0, initial_position, initial_velocity):
+class CoordsAKF:
+    def __init__(self,initial_position, t0):
         self.kf = KalmanFilter(dim_x=6, dim_z=3, dim_u=1)
         self.g = 9.81
 
+        self.Q_list, self.R_list, self.P_list, self.t_QR = [], [], [], []
+        self._riae_inited = False
+        self.init_poition = initial_position
+        self.t0 = t0
+
+    def init_velocity(self, t1, second_position):
+        self.dt0 = t1 - self.t0
+        self.init_velocity = (self.init_poition - second_position) / self.dt0
+        
+    def init_AKF(self):
         # Model: [x y z vx vy vz]
-        self.kf.F = np.array([[1,0,0, dt0,0,0],
-                              [0,1,0, 0,dt0,0],
-                              [0,0,1, 0,0,dt0],
+        self.kf.F = np.array([[1,0,0, self.dt0,0,0],
+                              [0,1,0, 0,self.dt0,0],
+                              [0,0,1, 0,0,self.dt0],
                               [0,0,0, 1,0,0],
                               [0,0,0, 0,1,0],
                               [0,0,0, 0,0,1]])
-        self.kf.B = np.array([[0],[0],[0.5*dt0**2],[0],[0],[dt0]])
+        self.kf.B = np.array([[0],[0],[0.5*self.dt0**2],[0],[0],[self.dt0]])
         self.kf.H = np.array([[1,0,0,0,0,0],
                               [0,1,0,0,0,0],
                               [0,0,1,0,0,0]])
         self.kf.Q = np.diag([0.01,0.01,0.01, 1.0,1.0,1.0])
         self.kf.R = np.eye(3)
         self.kf.P *= 100.0
-        self.kf.x = np.hstack((initial_position, initial_velocity)).reshape(6,1)
+        self.kf.x = np.hstack((self.init_poition, self.init_velocity)).reshape(6,1)
+        self.riae_init_rest()
 
-        self.Q_list, self.R_list, self.P_list, self.t_QR = [], [], [], []
-        self._riae_inited = False
-
-    def riae_init(self, *, window_size=5, warmup_steps=6, alpha=0.05,
+    def riae_init_rest(self, window_size=5, warmup_steps=6, alpha=0.05,
                   conf_level=0.99, adapt_Q=False, robust_update=True,
                   eig_clip=(1e-6, 1.0)):
         self._win = int(window_size)
@@ -121,22 +129,6 @@ class CoordsKF:
             z = (H @ self.kf.x) + innovation_rev
         self.kf.update(z)
         return self.kf.x.flatten()[:3], self.kf.P
-
-    def riae_run(self, measurements, **riae_kwargs):
-        self.riae_init(**riae_kwargs)
-        mean_list = []
-        state_cov_list = []
-        t_list = []
-        for t, x, y, z in measurements:
-            # For each step, we need to predict and update measurements
-            cur_mean, cur_covriance = self.riae_step(t, [x,y,z])
-            mean_list.append(cur_mean.tolist())
-            state_cov_list.append(cur_covriance)
-            t_list.append(t)
-
-        #self.kf_predict(0.02, self.kf_coords, num_future_steps = 200)
-
-        return t_list, mean_list, state_cov_list
     
     def kf_predict(self, dt, cal_traj, num_future_steps):
         """

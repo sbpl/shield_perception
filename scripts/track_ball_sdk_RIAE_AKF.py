@@ -11,10 +11,11 @@ import os
 import pickle
 import pyzed.sl as sl
 import rospy
-from CoordsKF import CoordsKF
+from CoordsAKF import CoordsAKF
 from scipy.optimize import least_squares
 from sensor_msgs.msg import PointCloud2, PointField
 from shield_planner_msgs.msg import Projectile
+from shield_planner_msgs.msg import MeanCovariance
 import std_msgs.msg
 import sys, signal
 import time
@@ -55,8 +56,8 @@ Num_Frame = 6 # 8
 measurements = []
 stamps = []
 finish_stamp = 0
-pc_xyz_list = []
-pc_rgb_list = []
+#pc_xyz_list = []
+#pc_rgb_list = []
 
 ## Visualization
 # Helper function to turn xyzrgb array to pc2 data structure
@@ -230,12 +231,10 @@ def main():
     # Capture images
     i = 0
     image= sl.Mat()
-    depth = sl.Mat()
     point_cloud = sl.Mat()
-    confidence_map = sl.Mat()
+    #confidence_map = sl.Mat()
 
-    count = 0
-
+    count = 0 # Count here is to record number of measurements
     if SAVE_IMG:
         img_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),"camera_calibration/color_data/")
 
@@ -255,13 +254,13 @@ def main():
                 # Retrieving Data
                 zed.retrieve_image(image, sl.VIEW.LEFT)
                 zed.retrieve_measure(point_cloud, sl.MEASURE.XYZRGBA)
-                zed.retrieve_measure(confidence_map, sl.MEASURE.CONFIDENCE)
+                #zed.retrieve_measure(confidence_map, sl.MEASURE.CONFIDENCE)
 
                 # continue
                 # Turning Data into np array
                 pc_xyz_np = point_cloud.get_data()[:,:,:3]
                 pc_rgb_np = point_cloud.get_data()[:,:,3]
-                confidence_np = confidence_map.get_data()
+                #confidence_np = confidence_map.get_data()
                 
                 if DEBUG:
                     # continue
@@ -313,13 +312,13 @@ def main():
                             where = ()
                     if len(where)>0:
                         # Masked PC and Confidence
-                        confidence_poi_all = confidence_np[where[0], where[1]].reshape((-1,1))
+                        #confidence_poi_all = confidence_np[where[0], where[1]].reshape((-1,1))
                         pc_xyz_poi_all = pc_xyz_np[where[0], where[1], :].reshape((-1,3))
                         pc_rgb_poi_all = pc_rgb_np[where[0], where[1]].reshape((-1,1))
                         valid_ind = np.logical_not(np.isnan(pc_xyz_poi_all[:,0]))
 
                         # Throw out NAN
-                        confidence_poi = confidence_poi_all[valid_ind,:]
+                        #confidence_poi = confidence_poi_all[valid_ind,:]
                         pc_xyz_poi = pc_xyz_poi_all[valid_ind,:]
                         pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
                         # TF
@@ -343,7 +342,7 @@ def main():
 
                         pc_xyz_poi = pc_xyz_poi[filtered_ind,:]
                         pc_rgb_poi = pc_rgb_poi[filtered_ind,:]
-                        confidence_poi = confidence_poi[filtered_ind,:]
+                        #confidence_poi = confidence_poi[filtered_ind,:]
 
                     # Outlier rejection
                     if OUTLIER_REJECT:
@@ -359,7 +358,7 @@ def main():
                         ind = np.intersect1d(np.intersect1d(ind_x, ind_y), ind_z)
                         pc_xyz_poi = pc_xyz_poi[ind,:]
                         pc_rgb_poi = pc_rgb_poi[ind,:]
-                        confidence_poi = confidence_poi[ind,:]
+                        #confidence_poi = confidence_poi[ind,:]
 
                     # Only continue if there are more than MIN_PIXEL points (30+)
                     if pc_xyz_poi.shape[0] < MIN_PIXEL:
@@ -369,11 +368,12 @@ def main():
                     mean_X = np.mean(pc_xyz_poi[:,0])
                     mean_Y = np.mean(pc_xyz_poi[:,1])
                     mean_Z = np.mean(pc_xyz_poi[:,2])
-                    mean_Conf = np.mean(confidence_poi[:])
+                    #mean_Conf = np.mean(confidence_poi[:])
                     if DEBUG:
                         print("Mean Depth: {}".format(mean_X))
 
                     if mean_X != 0 and mean_X < DIST_THRESHOLD:
+                        # Can start to publish each message
                         if SAVE_IMG:
                             image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
                             img_mk_path = img_path + "img_mk_" + str(count) + ".jpg"
@@ -381,60 +381,52 @@ def main():
                             cv2.imwrite(img_mk_path, image_masked)
                             cv2.imwrite(img_og_path, image_ocv)
 
-                        # For RIAE AKF, each point is given at each time stamp; we no longer need to wait until #Num_Frame measurements
-
-                        if mean_X < 4.5:
-                            count = count + 1
-
-                        if not stamps:
-                            t = 0.0
-                        else:
-                            t = stamp_temp-stamps[0]
                         stamps.append(stamp_temp)
-
-                        # Storing Data
-                        #print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}, Conf: {:.3f}".format(t, mean_X, mean_Y, mean_Z, mean_Conf))
-                        measurements.append((t, mean_X, mean_Y, mean_Z))
-                        pc_xyz_list.append(pc_xyz_poi)
-                        pc_rgb_list.append(pc_rgb_poi)
-
-
-                        # Perform trajectory estimation here using the measurements
-
-                        estimated_params = kf_prediction(measurements, future_dt= 0.01)
-
-                        print(f"Estimated Parameters (XYZ,VxVyVz): \n{estimated_params}")
+                        # For RIAE AKF, each point is given at each time stamp; we no longer need to wait until #Num_Frame measurements
+                        if count == 0:  # Initial measurement
+                            akf = CoordsAKF(stamp_temp, [mean_X,mean_Y,mean_Z])
+                            t = 0.0
+                        elif count == 1:
+                            # Finish AKF setup
+                            akf.init_velocity(stamp_temp, [mean_X,mean_Y,mean_Z])
+                            akf.init_AKF()
+                            t = stamp_temp - stamps[0]
+                        else:
+                            # AKF step
+                            mean, covP = akf.riae_step(stamp_temp, [mean_X,mean_Y,mean_Z])
+                            t = stamp_temp - stamps[0]
+                            measurements.append((t, mean_X, mean_Y, mean_Z))
+                            #pc_xyz_list.append(pc_xyz_poi)
+                            #pc_rgb_list.append(pc_rgb_poi)
+                            print("Estimated Parameters Mean and Covariance:", mean, covP)
 
                         # Publish Projectile Msg            
-                        projectile_msg = Projectile()
+                        meanCovariance_msg = MeanCovariance()
                         header = std_msgs.msg.Header()
                         header.stamp = rospy.Time.now()
                         header.frame_id = 'odom_combined'
-                        projectile_msg.header = header
-                        projectile_msg.object_id = 0
+                        meanCovariance_msg.header = header
+                        meanCovariance_msg.object_id = 0
 
-                        projectile_msg.position.x = estimated_params[0]
-                        projectile_msg.position.y = estimated_params[1]
-                        projectile_msg.position.z = estimated_params[2]
-                        projectile_msg.velocity.x = estimated_params[3]
-                        projectile_msg.velocity.y = estimated_params[4]
-                        projectile_msg.velocity.z = estimated_params[5]
-
+                        meanCovariance_msg.position.x = mean[0]
+                        meanCovariance_msg.position.y = mean[1]
+                        meanCovariance_msg.position.z = mean[2]
+                        meanCovariance_msg.P = covP.flatten().tolist()
 
                         if PUBLISH_PROJ:
-                            # global measurements, stamps, finish_stamp, pc_xyz_list, pc_rgb_list
-
-                            projectile_msg_pub.publish(projectile_msg)
+                            projectile_msg_pub.publish(meanCovariance_msg)
                             finish_stamp = rospy.Time.now().to_sec()
-                            rospy.logwarn("Publishing projectile!")
-                            print(projectile_msg)
+                            rospy.logwarn("Publishing meanCovariance msg!")
+                            print(meanCovariance_msg)
+                            
 
                             # Visualization Publishing and Time profiling
                             if count == Num_Frame:
-                                visualize_projectile_points(measurements, projectile_marker_pub)
-                                visualize_collected_pc(pc_xyz_list, pc_rgb_list, pc_pub)
+                                #visualize_projectile_points(measurements, projectile_marker_pub)
+                                #visualize_collected_pc(pc_xyz_list, pc_rgb_list, pc_pub)
 
                                 # Summary of the run
+                                '''
                                 print("*******************************************************")
                                 for ind, frame in enumerate(measurements):
                                     print("Point {}: Number of Pixels = {}".format(ind, pc_xyz_list[ind].shape[0]))
@@ -443,13 +435,13 @@ def main():
                                 print("*******************************************************")
                                 print("Projectile Publish Stamp: {}".format(finish_stamp))
                                 print("Time SPENT in Perception: {}".format(finish_stamp - stamps[0]) )
-                            
+                                '''
                             # Resetting variables
                             measurements.clear()
                             stamps.clear()
                             finish_stamp = 0
-                            pc_xyz_list.clear()
-                            pc_rgb_list.clear()
+                            #pc_xyz_list.clear()
+                            #pc_rgb_list.clear()
                             count = 0
                             time.sleep(5)
 
