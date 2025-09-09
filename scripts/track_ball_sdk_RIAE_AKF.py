@@ -191,7 +191,7 @@ def main():
                             PointCloud2,
                             queue_size = 1)
     projectile_msg_pub = rospy.Publisher("projectile", 
-                                        Projectile,
+                                        MeanCovariance,
                                         queue_size=1)
     projectile_marker_pub = rospy.Publisher("/projectile_vis",
                                             MarkerArray,
@@ -364,6 +364,7 @@ def main():
                     if pc_xyz_poi.shape[0] < MIN_PIXEL:
                         continue
                 
+                    
                     # Calculate the mean of the depth
                     mean_X = np.mean(pc_xyz_poi[:,0])
                     mean_Y = np.mean(pc_xyz_poi[:,1])
@@ -384,75 +385,76 @@ def main():
                         stamps.append(stamp_temp)
                         # For RIAE AKF, each point is given at each time stamp; we no longer need to wait until #Num_Frame measurements
                         if count == 0:  # Initial measurement
-                            akf = CoordsAKF(stamp_temp, [mean_X,mean_Y,mean_Z])
+                            akf = CoordsAKF(stamp_temp, np.array([mean_X,mean_Y,mean_Z]))
                             #t = 0.0
                         elif count == 1:
                             # Finish AKF setup
-                            akf.init_velocity(stamp_temp, [mean_X,mean_Y,mean_Z])
+                            akf.init_velocity(stamp_temp, np.array([mean_X,mean_Y,mean_Z]))
                             akf.init_AKF()
                             #t = stamp_temp - stamps[0]
                         else:
                             # AKF step
-                            mean, covP = akf.riae_step(stamp_temp, [mean_X,mean_Y,mean_Z])
+                            mean, covP = akf.riae_step(stamp_temp, np.array([mean_X,mean_Y,mean_Z]))
                             #t = stamp_temp - stamps[0]
                             #measurements.append((t, mean_X, mean_Y, mean_Z))
                             #pc_xyz_list.append(pc_xyz_poi)
                             #pc_rgb_list.append(pc_rgb_poi)
                             print("Estimated Parameters Mean and Covariance:", mean, covP)
 
-                        # Publish Projectile Msg            
-                        meanCovariance_msg = MeanCovariance()
-                        header = std_msgs.msg.Header()
-                        header.stamp = rospy.Time.now()
-                        header.frame_id = 'odom_combined'
-                        meanCovariance_msg.header = header
-                        meanCovariance_msg.object_id = 0
+                            # Publish Projectile Msg            
+                            meanCovariance_msg = MeanCovariance()
+                            print(dir(meanCovariance_msg)),
+                            header = std_msgs.msg.Header()
+                            header.stamp = rospy.Time.now()
+                            header.frame_id = 'odom_combined'
+                            meanCovariance_msg.header = header
+                            #meanCovariance_msg.object_id = 0
 
-                        meanCovariance_msg.position.x = mean[0]
-                        meanCovariance_msg.position.y = mean[1]
-                        meanCovariance_msg.position.z = mean[2]
-                        meanCovariance_msg.P = covP.flatten().tolist()
+                            meanCovariance_msg.position.x = mean[0]
+                            meanCovariance_msg.position.y = mean[1]
+                            meanCovariance_msg.position.z = mean[2]
+                            meanCovariance_msg.P = covP.flatten().tolist()
 
-                        if PUBLISH_PROJ:
-                            projectile_msg_pub.publish(meanCovariance_msg)
-                            finish_stamp = rospy.Time.now().to_sec()
-                            rospy.logwarn("Publishing meanCovariance msg!")
-                            print(meanCovariance_msg)
-                            
-                            '''
-                            # Visualization Publishing and Time profiling
-                            if count == Num_Frame:
-                                #visualize_projectile_points(measurements, projectile_marker_pub)
-                                #visualize_collected_pc(pc_xyz_list, pc_rgb_list, pc_pub)
-
-                                # Summary of the run
+                            if PUBLISH_PROJ:
+                                projectile_msg_pub.publish(meanCovariance_msg)
+                                finish_stamp = rospy.Time.now().to_sec()
+                                rospy.logwarn("Publishing meanCovariance msg!")
+                                print(meanCovariance_msg)
                                 
-                                print("*******************************************************")
-                                for ind, frame in enumerate(measurements):
-                                    print("Point {}: Number of Pixels = {}".format(ind, pc_xyz_list[ind].shape[0]))
-                                    print("Time Stamp: {}".format(stamps[ind]))
-                                    print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}".format(frame[0], frame[1], frame[2], frame[3]))
-                                print("*******************************************************")
-                                print("Projectile Publish Stamp: {}".format(finish_stamp))
-                                print("Time SPENT in Perception: {}".format(finish_stamp - stamps[0]) )
-                                
-                            # Resetting variables
-                            #measurements.clear()
-                            stamps.clear()
-                            finish_stamp = 0
-                            #pc_xyz_list.clear()
-                            #pc_rgb_list.clear()
-                            count = 0
-                            time.sleep(5)
-                            '''
+                                '''
+                                # Visualization Publishing and Time profiling
+                                if count == Num_Frame:
+                                    #visualize_projectile_points(measurements, projectile_marker_pub)
+                                    #visualize_collected_pc(pc_xyz_list, pc_rgb_list, pc_pub)
 
-                        if mean_X < 0.25: # within the outerdome 
-                            # Resetting variables
-                            stamps.clear()
-                            count = 0
-                            del akf
-                            time.sleep(5)
+                                    # Summary of the run
+                                    
+                                    print("*******************************************************")
+                                    for ind, frame in enumerate(measurements):
+                                        print("Point {}: Number of Pixels = {}".format(ind, pc_xyz_list[ind].shape[0]))
+                                        print("Time Stamp: {}".format(stamps[ind]))
+                                        print("t: {:.5f}, X: {:.5f}, Y: {:.5f}, Z: {:.5f}".format(frame[0], frame[1], frame[2], frame[3]))
+                                    print("*******************************************************")
+                                    print("Projectile Publish Stamp: {}".format(finish_stamp))
+                                    print("Time SPENT in Perception: {}".format(finish_stamp - stamps[0]) )
+                                    
+                                # Resetting variables
+                                #measurements.clear()
+                                stamps.clear()
+                                finish_stamp = 0
+                                #pc_xyz_list.clear()
+                                #pc_rgb_list.clear()
+                                count = 0
+                                time.sleep(5)
+                                '''
 
+                            if mean_X < 0.25: # within the outerdome 
+                                # Resetting variables
+                                stamps.clear()
+                                count = 0
+                                del akf
+                                time.sleep(5)
+                    count = count + 1
     except KeyboardInterrupt:
         # Cleanup ZED and CV
         cv2.destroyAllWindows()

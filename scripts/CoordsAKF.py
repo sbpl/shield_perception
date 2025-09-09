@@ -3,16 +3,17 @@ from collections import deque
 from filterpy.kalman import KalmanFilter
 
 class CoordsAKF:
-    def __init__(self,initial_position, t0):
+    def __init__(self,t0, initial_position):
         self.kf = KalmanFilter(dim_x=6, dim_z=3, dim_u=1)
         self.g = 9.81
 
         self.Q_list, self.R_list, self.P_list, self.t_QR = [], [], [], []
         self._riae_inited = False
         self.init_poition = initial_position
-        self.t0 = t0
+        self.t0 = float(t0)
 
     def init_velocity(self, t1, second_position):
+        t1=float(t1)
         self.dt0 = t1 - self.t0
         self.init_velocity = (self.init_poition - second_position) / self.dt0
         
