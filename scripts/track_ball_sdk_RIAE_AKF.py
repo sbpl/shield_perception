@@ -413,6 +413,9 @@ def main():
                             meanCovariance_msg.position.x = mean[0]
                             meanCovariance_msg.position.y = mean[1]
                             meanCovariance_msg.position.z = mean[2]
+                            meanCovariance_msg.velocity.x = mean[3]
+                            meanCovariance_msg.velocity.y = mean[4]
+                            meanCovariance_msg.velocity.z = mean[5]
                             meanCovariance_msg.P = covP.flatten().tolist()
 
                             if PUBLISH_PROJ:

@@ -129,7 +129,7 @@ class CoordsAKF:
         if self._robust_update:
             z = (H @ self.kf.x) + innovation_rev
         self.kf.update(z)
-        return self.kf.x.flatten()[:3], self.kf.P
+        return self.kf.x.flatten()[:6], self.kf.P
     
     def kf_predict(self, dt, cal_traj, num_future_steps):
         """
