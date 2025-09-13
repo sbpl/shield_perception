@@ -25,7 +25,7 @@ from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryG
 sim = False
 
 # model
-model_dir = '/home/shield/scratch/parallel_search/third_party/mujoco-2.3.2/model/abb/irb_1600/'
+model_dir = '/home/shield/code/shield_min_ws/src/parallel_search/third_party/mujoco-2.3.2/model/abb/irb_1600'
 mjcf = 'irb1600_6_12_camcalib.xml'
 
 # viewer params
@@ -54,7 +54,7 @@ if err != sl.ERROR_CODE.SUCCESS:
 # output save dir
 # num_samples = 100
 num_samples = 50
-save_dir = '/home/shield/code/shield_obs_ws/src/shield_perception/scripts/camera_calibration/calib_data'
+save_dir = '/home/shield/code/shield_min_ws/src/shield_perception/scripts/camera_calibration/calib_data'
 
 # planner params
 nq = 6

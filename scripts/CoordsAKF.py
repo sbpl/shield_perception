@@ -66,7 +66,7 @@ class CoordsAKF:
 
         if self._last_time is None:
             self._last_time = float(t_k)
-            return self.kf.x.flatten()[:3], self.kf.P
+            return self.kf.x.flatten()[:6], self.kf.P
 
         dt = float(t_k) - self._last_time
         self._last_time = float(t_k)
@@ -129,7 +129,7 @@ class CoordsAKF:
         if self._robust_update:
             z = (H @ self.kf.x) + innovation_rev
         self.kf.update(z)
-        return self.kf.x.flatten()[:3], self.kf.P
+        return self.kf.x.flatten()[:6], self.kf.P
     
     def kf_predict(self, dt, cal_traj, num_future_steps):
         """

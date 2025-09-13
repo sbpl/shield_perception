@@ -30,18 +30,18 @@ from helpers import *
 from constants import *
 
 # MACRO
-DETECTION_ID = 1 # 0 - Color filter, 1 - retrained YOLOv8
+DETECTION_ID = 0 # 0 - Color filter, 1 - retrained YOLOv8
 OUTLIER_REJECT=1
 BOUNDING_FILTER=1
 DIST_THRESHOLD=8
-MIN_PIXEL=15
+MIN_PIXEL=30
 PUBLISH_PROJ=1
 METHOD_ID=1         #0 = native bounding box (aborted), 1 = color detection, 2 = open3d bounding box (aborted)
 DEBUG=0
 VISUAL=0
 SAVE_IMG=0  
 RES=0 # 0 - VGA, 1 - 720p
-LIGHT_CONDITION=3   #0 = no lights, 1 = cam lights, 2 = left lights, 3 = ceil lights, 4 = cam + ceil, 5 = left + ceil
+LIGHT_CONDITION=5   #0 = no lights, 1 = cam lights, 2 = left lights, 3 = ceil lights, 4 = cam + ceil, 5 = left + ceil
 
 # retrained YOLOv8 model
 YOLO_VERSION = 1
@@ -235,6 +235,7 @@ def main():
     #confidence_map = sl.Mat()
 
     count = 0 # Count here is to record number of measurements
+    count_valid = 0 # Count of valid frames
     if SAVE_IMG:
         img_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),"camera_calibration/color_data/")
 
@@ -248,9 +249,10 @@ def main():
                 i = i + 1
                 fps = zed.get_current_fps()
                 # rospy.loginfo("Frame Rate: {} FPS".format(fps))
+                """
                 if fps < 50:
                     rospy.logerr("!!FRAMERATE!!: {} FPS".format(fps))
-
+                """
                 # Retrieving Data
                 zed.retrieve_image(image, sl.VIEW.LEFT)
                 zed.retrieve_measure(point_cloud, sl.MEASURE.XYZRGBA)
@@ -323,6 +325,8 @@ def main():
                         #pc_rgb_poi = pc_rgb_poi_all[valid_ind,:]
                         # TF
                         pc_xyz_poi = np.dot(T_BASE_TO_LEFT, np.append(pc_xyz_poi, np.ones((pc_xyz_poi.shape[0],1)), axis=1).transpose())[0:3,:].transpose()
+                    else:
+                        count_valid = 0
 
                 elif METHOD_ID == 2:
                     continue
@@ -362,18 +366,26 @@ def main():
 
                     # Only continue if there are more than MIN_PIXEL points (30+)
                     if pc_xyz_poi.shape[0] < MIN_PIXEL:
+                        count_valid = 0
+                        count=0
                         continue
-                
+                    else:
+                        count_valid = count_valid + 1
+
+                    if count_valid < 3:
+                        continue
                     
                     # Calculate the mean of the depth
                     mean_X = np.mean(pc_xyz_poi[:,0])
                     mean_Y = np.mean(pc_xyz_poi[:,1])
                     mean_Z = np.mean(pc_xyz_poi[:,2])
+
                     #mean_Conf = np.mean(confidence_poi[:])
                     if DEBUG:
                         print("Mean Depth: {}".format(mean_X))
 
                     if mean_X != 0 and mean_X < DIST_THRESHOLD:
+                        
                         # Can start to publish each message
                         if SAVE_IMG:
                             image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
@@ -386,6 +398,7 @@ def main():
                         # For RIAE AKF, each point is given at each time stamp; we no longer need to wait until #Num_Frame measurements
                         if count == 0:  # Initial measurement
                             akf = CoordsAKF(stamp_temp, np.array([mean_X,mean_Y,mean_Z]))
+                            rospy.loginfo("Initialize AKF with: X: {}, Y: {}, Z: {}".format(mean_X,mean_Y,mean_Z))
                             #t = 0.0
                         elif count == 1:
                             # Finish AKF setup
@@ -399,27 +412,25 @@ def main():
                             #measurements.append((t, mean_X, mean_Y, mean_Z))
                             #pc_xyz_list.append(pc_xyz_poi)
                             #pc_rgb_list.append(pc_rgb_poi)
-                            print("Estimated Parameters Mean and Covariance:", mean, covP)
+                            #print("Estimated Parameters Mean and Covariance:", mean, covP)
 
                             # Publish Projectile Msg            
                             meanCovariance_msg = MeanCovariance()
-                            print(dir(meanCovariance_msg)),
+                            #print(dir(meanCovariance_msg)),
                             header = std_msgs.msg.Header()
                             header.stamp = rospy.Time.now()
                             header.frame_id = 'odom_combined'
                             meanCovariance_msg.header = header
                             #meanCovariance_msg.object_id = 0
 
-                            meanCovariance_msg.position.x = mean[0]
-                            meanCovariance_msg.position.y = mean[1]
-                            meanCovariance_msg.position.z = mean[2]
+                            meanCovariance_msg.mu = mean.tolist()  # or mean.tolist() if needed
                             meanCovariance_msg.P = covP.flatten().tolist()
 
                             if PUBLISH_PROJ:
                                 projectile_msg_pub.publish(meanCovariance_msg)
                                 finish_stamp = rospy.Time.now().to_sec()
-                                rospy.logwarn("Publishing meanCovariance msg!")
-                                print(meanCovariance_msg)
+                                #rospy.logwarn("Publishing meanCovariance msg!")
+                                #print(meanCovariance_msg)
                                 
                                 '''
                                 # Visualization Publishing and Time profiling
@@ -455,6 +466,8 @@ def main():
                                 del akf
                                 time.sleep(5)
                     count = count + 1
+                else:
+                    count_valid = 0
     except KeyboardInterrupt:
         # Cleanup ZED and CV
         cv2.destroyAllWindows()
