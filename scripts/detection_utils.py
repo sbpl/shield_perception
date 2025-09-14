@@ -21,10 +21,18 @@ def color_filter(image_ocv, VISUAL):
     lower_bound_green = np.array([50, 75, 100])
     upper_bound_green = np.array([85, 255, 255])
 
+    # Yellow range (to exclude)
+    lower_bound_yellow = np.array([22, 75, 100])
+    upper_bound_yellow = np.array([35, 255, 255])
+
+    mask_yellow = cv2.inRange(hsv_image, lower_bound_yellow, upper_bound_yellow)
     # Create a binary mask for orange color in HSV
     mask_orange = cv2.inRange(hsv_image, lower_bound_orange, upper_bound_orange)
-    mask_green = cv2.inRange(hsv_image, lower_bound_green, upper_bound_green)
-    mask = mask_orange + mask_green
+    # Subtract yellow from orange
+    mask_orange_no_yellow = cv2.subtract(mask_orange, mask_yellow)
+
+   # mask_green = cv2.inRange(hsv_image, lower_bound_green, upper_bound_green)
+    mask = mask_orange_no_yellow
     # mask = mask_orange
     where = np.where(mask == 255)
     # DEBUG: Visualize masked image

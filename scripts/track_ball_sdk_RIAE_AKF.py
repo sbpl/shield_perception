@@ -39,9 +39,9 @@ PUBLISH_PROJ=1
 METHOD_ID=1         #0 = native bounding box (aborted), 1 = color detection, 2 = open3d bounding box (aborted)
 DEBUG=0
 VISUAL=0
-SAVE_IMG=0  
+SAVE_IMG=0 
 RES=0 # 0 - VGA, 1 - 720p
-LIGHT_CONDITION=5   #0 = no lights, 1 = cam lights, 2 = left lights, 3 = ceil lights, 4 = cam + ceil, 5 = left + ceil
+LIGHT_CONDITION=4   #0 = no lights, 1 = cam lights, 2 = left lights, 3 = ceil lights, 4 = cam + ceil, 5 = left + ceil
 
 # retrained YOLOv8 model
 YOLO_VERSION = 1
@@ -236,6 +236,7 @@ def main():
 
     count = 0 # Count here is to record number of measurements
     count_valid = 0 # Count of valid frames
+    first = True
     if SAVE_IMG:
         img_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),"camera_calibration/color_data/")
 
@@ -371,7 +372,7 @@ def main():
                         continue
                     else:
                         count_valid = count_valid + 1
-
+                    #print(count_valid)
                     if count_valid < 3:
                         continue
                     
@@ -385,20 +386,21 @@ def main():
                         print("Mean Depth: {}".format(mean_X))
 
                     if mean_X != 0 and mean_X < DIST_THRESHOLD:
-                        
                         # Can start to publish each message
                         if SAVE_IMG:
-                            image_masked = cv2.bitwise_and(image_ocv, image_ocv, mask=mask)
+                            image_masked = cv2.bitwise_and(image_ocv, image_ocv)
                             img_mk_path = img_path + "img_mk_" + str(count) + ".jpg"
                             img_og_path = img_path + "img_og_" + str(count) + ".jpg"
                             cv2.imwrite(img_mk_path, image_masked)
                             cv2.imwrite(img_og_path, image_ocv)
 
                         stamps.append(stamp_temp)
+                        
                         # For RIAE AKF, each point is given at each time stamp; we no longer need to wait until #Num_Frame measurements
                         if count == 0:  # Initial measurement
                             akf = CoordsAKF(stamp_temp, np.array([mean_X,mean_Y,mean_Z]))
                             rospy.loginfo("Initialize AKF with: X: {}, Y: {}, Z: {}".format(mean_X,mean_Y,mean_Z))
+                            first = True
                             #t = 0.0
                         elif count == 1:
                             # Finish AKF setup
@@ -408,6 +410,9 @@ def main():
                         else:
                             # AKF step
                             mean, covP = akf.riae_step(stamp_temp, np.array([mean_X,mean_Y,mean_Z]))
+                            if first:
+                                first = False
+                                rospy.loginfo("First AKF update:".format(mean))
                             #t = stamp_temp - stamps[0]
                             #measurements.append((t, mean_X, mean_Y, mean_Z))
                             #pc_xyz_list.append(pc_xyz_poi)

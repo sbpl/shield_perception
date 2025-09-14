@@ -31,7 +31,7 @@ class CoordsAKF:
                               [0,0,1,0,0,0]])
         self.kf.Q = np.diag([0.01,0.01,0.01, 1.0,1.0,1.0])
         self.kf.R = np.eye(3)
-        self.kf.P *= 100.0
+        self.kf.P = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
         self.kf.x = np.hstack((self.init_poition, self.init_velocity)).reshape(6,1)
         self.riae_init_rest()
 
