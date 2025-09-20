@@ -15,7 +15,8 @@ class CoordsAKF:
     def init_velocity(self, t1, second_position):
         t1=float(t1)
         self.dt0 = t1 - self.t0
-        self.init_velocity = (self.init_poition - second_position) / self.dt0
+        self.init_velocity = (second_position - self.init_poition) / self.dt0
+        self.init_poition = second_position
         
     def init_AKF(self):
         # Model: [x y z vx vy vz]

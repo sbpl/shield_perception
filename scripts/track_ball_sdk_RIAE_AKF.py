@@ -249,7 +249,7 @@ def main():
                 stamp_temp = rospy.Time.now().to_sec()
                 i = i + 1
                 fps = zed.get_current_fps()
-                # rospy.loginfo("Frame Rate: {} FPS".format(fps))
+                #rospy.loginfo("Frame Rate: {} FPS".format(fps))
                 """
                 if fps < 50:
                     rospy.logerr("!!FRAMERATE!!: {} FPS".format(fps))
@@ -373,7 +373,7 @@ def main():
                     else:
                         count_valid = count_valid + 1
                     #print(count_valid)
-                    if count_valid < 3:
+                    if count_valid < 4:
                         continue
                     
                     # Calculate the mean of the depth
@@ -402,17 +402,17 @@ def main():
                             rospy.loginfo("Initialize AKF with: X: {}, Y: {}, Z: {}".format(mean_X,mean_Y,mean_Z))
                             first = True
                             #t = 0.0
-                        elif count == 1:
+                        elif count == 3:
                             # Finish AKF setup
                             akf.init_velocity(stamp_temp, np.array([mean_X,mean_Y,mean_Z]))
                             akf.init_AKF()
                             #t = stamp_temp - stamps[0]
-                        else:
+                        elif count >3:
                             # AKF step
                             mean, covP = akf.riae_step(stamp_temp, np.array([mean_X,mean_Y,mean_Z]))
                             if first:
-                                first = False
-                                rospy.loginfo("First AKF update:".format(mean))
+                                #first = False
+                                rospy.loginfo("First AKF update: {}".format(mean))
                             #t = stamp_temp - stamps[0]
                             #measurements.append((t, mean_X, mean_Y, mean_Z))
                             #pc_xyz_list.append(pc_xyz_poi)
@@ -431,7 +431,7 @@ def main():
                             meanCovariance_msg.mu = mean.tolist()  # or mean.tolist() if needed
                             meanCovariance_msg.P = covP.flatten().tolist()
 
-                            if PUBLISH_PROJ:
+                            if PUBLISH_PROJ and abs(mean[3])>2:
                                 projectile_msg_pub.publish(meanCovariance_msg)
                                 finish_stamp = rospy.Time.now().to_sec()
                                 #rospy.logwarn("Publishing meanCovariance msg!")
