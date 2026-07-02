@@ -303,6 +303,7 @@ if __name__ == "__main__":
     print("Connected to follow_joint_trajectory server")
 
     updateCurrentState()
+    print(start_tpva[0])
     # From the EE to POI
     T_W_poi_pos, T_W_poi_quat = getSiteTransformWRTWorld('poi')
     T_W_ee_pos, T_W_ee_quat = getSiteTransformWRTWorld('ee')

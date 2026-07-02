@@ -18,11 +18,17 @@
 
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
   <depend>visualization_msgs</depend>
+  <depend>roscpp</depend>
   <build_depend>rospy</build_depend>
   <build_export_depend>rospy</build_export_depend>
   <exec_depend>rospy</exec_depend>
   <build_depend>shield_planner_msgs</build_depend>
   <exec_depend>shield_planner_msgs</exec_depend>
+  <build_depend>libeigen3-dev</build_depend>
+  <exec_depend>libeigen3-dev</exec_depend>
+  <build_depend>libopencv-dev</build_depend>
+  <exec_depend>libopencv-dev</exec_depend>
 
 </package>

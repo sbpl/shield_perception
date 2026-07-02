@@ -30,7 +30,7 @@ from helpers import *
 from constants import *
 
 # MACRO
-DETECTION_ID = 0 # 0 - Color filter, 1 - retrained YOLOv8
+DETECTION_ID = 1 # 0 - Color filter, 1 - retrained YOLOv8
 OUTLIER_REJECT=1
 BOUNDING_FILTER=1
 DIST_THRESHOLD=8
@@ -93,27 +93,40 @@ def xyzrgb_array_to_pointcloud2(points, colors, stamp=None, frame_id=None, seq=N
     msg.data = xyzrgb.tobytes()
     return msg
 
-# Function to publish points used to estimate the projectile
-def visualize_projectile_points( bpes, pmmsg ):
+def visualize_projectile_points(bpes, pmmsg):
     markers = MarkerArray()
+
+    # Clear all old markers (DELETEALL)
+    delete_all_marker = Marker()
+    delete_all_marker.action = Marker.DELETEALL
+    markers.markers.append(delete_all_marker)
+
     for ind, es in enumerate(bpes):
         marker = Marker()
         marker.header.frame_id = "odom_combined"
+        marker.header.stamp = rospy.Time.now()
         marker.type = marker.SPHERE
         marker.id = ind
         marker.action = marker.ADD
+
         marker.scale.x = 0.2
         marker.scale.y = 0.2
         marker.scale.z = 0.2
+
         marker.color.a = 0.3
         marker.color.r = 1.0
         marker.color.g = 1.0
         marker.color.b = 0.0
+
         marker.pose.orientation.w = 1.0
         marker.pose.position.x = es[1]
-        marker.pose.position.y = es[2] 
+        marker.pose.position.y = es[2]
         marker.pose.position.z = es[3]
+
+        marker.lifetime = rospy.Duration(1.0)
+
         markers.markers.append(marker)
+
     pmmsg.publish(markers)
 
 # Function to visualized pc2 that are collected

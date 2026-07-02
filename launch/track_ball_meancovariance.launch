@@ -1,0 +1,7 @@
+<launch>
+  <rosparam file="$(find shield_perception)/params/track_ball_meancovariance.yaml" command="load"/>
+  <node pkg="shield_perception"
+        type="track_ball_meancovariance_node"
+        name="track_ball_meancovariance"
+        output="screen"/>
+</launch>

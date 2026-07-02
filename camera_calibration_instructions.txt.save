@@ -1,0 +1,38 @@
+Step 1:
+
+cd shield_min_ws/src/shield_perception/scripts && conda activate zed_calib
+
+step 2:
+
+(make sure robot is on / in automatic mode / motor controller on)
+	2a: shieldminld && roslaunch abb_robot_bringup_examples custom_moveit_setup.launch robot_ip:=192.168.55.1
+	2b : abb_control
+step 3:
+
+take off shield, put on calibration end effector attachment
+
+step 4:
+
+move joints to [0 0 0 0 0 0]
+
+step 5:
+
+run camcalib.py
+
+step 6:
+
+run calibdata.py
+
+step 7:
+calibdata.py processes data and produces:
+
+Camera base to left frame T: 
+ [[ 0.83182232 -0.19390764 -0.52006869  0.79588413]
+ [ 0.12945255  0.97892641 -0.15794027  0.23345217]
+ [ 0.5397348   0.06405402  0.83939468  0.04414754]
+ [ 0.          0.          0.          1.        ]]
+
+step 8:
+
+paste SE3 matrix into constants.py and add a comment for logging
+

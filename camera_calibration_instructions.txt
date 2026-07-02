@@ -1,0 +1,26 @@
+Step 1:
+
+cd shield_min_ws/src/shield_perception/scripts && conda activate zed_calib
+
+step 2:
+
+(make sure robot is on / in automatic mode / motor controller on)
+	2a: shieldminld && roslaunch abb_robot_bringup_examples custom_moveit_setup.launch robot_ip:=192.168.55.1
+	2b : abb_control
+step 3:
+
+take off shield, put on calibration end effector attachment
+
+step 4:
+
+move joints to [0 0 0 0 0 0]
+
+step 5:
+
+run camcalib.py
+
+step 6:
+
+
+
+

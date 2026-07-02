@@ -1,0 +1,12 @@
+track_ball_meancovariance:
+  dist_threshold: 9.0
+  min_pixel: 30
+  num_frame: 4
+  engine_path: "/home/shield/code/shield_replan_ws/src/shield_perception/scripts/YOLOv8_weights_2_trt86.engine"
+  confidence_threshold: 0.3
+  debug_log: false
+  use_letterbox: true
+  debug_image_path: ""
+  camera_resolution: "VGA"
+  camera_fps: 100
+  svo_file: ""
