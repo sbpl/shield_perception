@@ -26,12 +26,6 @@ constexpr double kGravity = 9.81;
 constexpr int kStateDim = 6;
 constexpr int kMeasurementDim = 3;
 
-const Eigen::Matrix4d kBaseToLeft = (Eigen::Matrix4d() <<
-    0.83182232, -0.19390764, -0.52006869, 0.79588413,
-    0.12945255, 0.97892641, -0.15794027, 0.23345217,
-    0.53973480, 0.06405402, 0.83939468, 0.04414754,
-    0.0, 0.0, 0.0, 1.0).finished();
-
 struct Detection
 {
   cv::Rect box;
@@ -559,7 +553,8 @@ private:
 
 std::vector<Eigen::Vector3d> filterPoints(const sl::Mat& point_cloud,
                                           const cv::Rect& box,
-                                          double dist_threshold)
+                                          double dist_threshold,
+                                          const Eigen::Matrix4d& base_to_left)
 {
   std::vector<Eigen::Vector3d> points;
   points.reserve(static_cast<size_t>(box.area()));
@@ -574,7 +569,7 @@ std::vector<Eigen::Vector3d> filterPoints(const sl::Mat& point_cloud,
         continue;
       }
       const Eigen::Vector4d left_point(point.x, point.y, point.z, 1.0);
-      const Eigen::Vector3d p = (kBaseToLeft * left_point).head<3>();
+      const Eigen::Vector3d p = (base_to_left * left_point).head<3>();
       if (p.x() > 0.8 && p.x() < dist_threshold &&
           p.y() > -2.0 && p.y() < 2.0 &&
           p.z() > 0.0 && p.z() < 2.8) {
@@ -642,6 +637,7 @@ int main(int argc, char** argv)
   bool debug_log = false;
   bool use_letterbox = true;
   std::string debug_image_path;
+  std::vector<double> base_to_left_values;
 
   pnh.param("dist_threshold", dist_threshold, dist_threshold);
   pnh.param("min_pixel", min_pixel, min_pixel);
@@ -654,6 +650,38 @@ int main(int argc, char** argv)
   pnh.param("debug_log", debug_log, debug_log);
   pnh.param("use_letterbox", use_letterbox, use_letterbox);
   pnh.param("debug_image_path", debug_image_path, debug_image_path);
+
+  if (!pnh.getParam("base_to_left", base_to_left_values)) {
+    ROS_FATAL("~base_to_left is required; load it from params/zed2i.yaml");
+    return 1;
+  }
+  if (base_to_left_values.size() != 16) {
+    ROS_FATAL("~base_to_left must contain 16 row-major values, but contains %zu",
+              base_to_left_values.size());
+    return 1;
+  }
+
+  Eigen::Matrix4d base_to_left;
+  for (int row = 0; row < 4; ++row) {
+    for (int col = 0; col < 4; ++col) {
+      const double value = base_to_left_values[static_cast<size_t>(row * 4 + col)];
+      if (!std::isfinite(value)) {
+        ROS_FATAL("~base_to_left contains a non-finite value at row %d, column %d", row, col);
+        return 1;
+      }
+      base_to_left(row, col) = value;
+    }
+  }
+  if (!base_to_left.row(3).isApprox(Eigen::RowVector4d(0.0, 0.0, 0.0, 1.0), 1e-9)) {
+    ROS_FATAL("~base_to_left must be a homogeneous transform with last row [0, 0, 0, 1]");
+    return 1;
+  }
+  const Eigen::Matrix3d rotation = base_to_left.topLeftCorner<3, 3>();
+  if (!(rotation.transpose() * rotation).isApprox(Eigen::Matrix3d::Identity(), 1e-3) ||
+      std::abs(rotation.determinant() - 1.0) > 1e-3) {
+    ROS_FATAL("~base_to_left rotation block is not a valid rotation matrix");
+    return 1;
+  }
 
   if (num_frame < 3) {
     ROS_WARN("num_frame must be at least 3 for velocity initialization; using 3");
@@ -755,7 +783,8 @@ int main(int argc, char** argv)
     }
 
     const cv::Rect shrunk_box = shrinkBox(detection.box, rgb.size());
-    const std::vector<Eigen::Vector3d> points = filterPoints(point_cloud, shrunk_box, dist_threshold);
+    const std::vector<Eigen::Vector3d> points =
+        filterPoints(point_cloud, shrunk_box, dist_threshold, base_to_left);
     if (debug_log) {
       ROS_INFO_THROTTLE(1.0,
                         "Detection score=%.3f bbox=[%d,%d %dx%d] shrunk=[%d,%d %dx%d] filtered_points=%zu",

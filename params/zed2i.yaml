@@ -12,3 +12,12 @@ depth:
     max_depth:                  20.0            # Max: 40.0
     # sensing_mode:               1
     quality:                    3               # '0': NONE, '1': PERFORMANCE, '2': QUALITY, '3': ULTRA, '4': NEURAL
+
+# Hand-eye calibration transform from the ZED left-camera coordinate frame to
+# the robot base/odom_combined frame. Values are row-major. Update this after
+# running camcalib.py and calibdata.py.
+track_ball_meancovariance:
+    base_to_left: [0.83182232, -0.19390764, -0.52006869, 0.79588413,
+                   0.12945255,  0.97892641, -0.15794027, 0.23345217,
+                   0.53973480,  0.06405402,  0.83939468, 0.04414754,
+                   0.0,         0.0,         0.0,        1.0]
